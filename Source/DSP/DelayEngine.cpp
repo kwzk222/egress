@@ -25,8 +25,8 @@ void DelayEngine::prepare(double sampleRate, int samplesPerBlock)
 
     bbdFilterL.prepare(spec);
     bbdFilterR.prepare(spec);
-    bbdFilterL.setType(juce::dsp::StateVariableFilter::Parameters<float>::Type::lowPass);
-    bbdFilterR.setType(juce::dsp::StateVariableFilter::Parameters<float>::Type::lowPass);
+    bbdFilterL.setType(juce::dsp::StateVariableTPTFilterType::lowpass);
+    bbdFilterR.setType(juce::dsp::StateVariableTPTFilterType::lowpass);
     bbdFilterL.setCutoffFrequency(2500.0f);
     bbdFilterR.setCutoffFrequency(2500.0f);
 }

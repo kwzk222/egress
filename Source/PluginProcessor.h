@@ -76,8 +76,8 @@ private:
     int stutterLengthSamples { 0 };
 
     // Simple Crossover Filters
-    juce::dsp::StateVariableFilter::Filter<float> crossoverLP;
-    juce::dsp::StateVariableFilter::Filter<float> crossoverHP;
+    juce::dsp::StateVariableTPTFilter<float> crossoverLP;
+    juce::dsp::StateVariableTPTFilter<float> crossoverHP;
 
     // Spectrum FIFO buffers for UI
     static constexpr int fftSize = 1024;

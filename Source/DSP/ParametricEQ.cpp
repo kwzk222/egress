@@ -133,11 +133,29 @@ float ParametricEQ::getMagnitudeForFrequency(float frequency, double sampleRate)
 
         if (coeffs != nullptr)
         {
-            double mag = coeffs->getFilterResponse(frequency, sampleRate);
-            for (int stage = 0; stage < numStages; ++stage)
+            float freq = bandConfigs[b].frequency;
+            float gainDb = bandConfigs[b].gainDb;
+            float q = bandConfigs[b].q;
+
+            // Direct analytical magnitude estimation
+            float ratio = frequency / std::max(1.0f, freq);
+            float bandMag = 1.0f;
+
+            if (bandConfigs[b].type == FilterType::Bell)
             {
-                totalMag *= static_cast<float>(mag);
+                float dist = std::abs(std::log2(ratio));
+                bandMag = juce::Decibels::decibelsToGain(gainDb / (1.0f + dist * q * 2.0f));
             }
+            else if (bandConfigs[b].type == FilterType::LowCut)
+            {
+                bandMag = 1.0f / std::sqrt(1.0f + std::pow(freq / std::max(1.0f, frequency), 2.0f * numStages));
+            }
+            else if (bandConfigs[b].type == FilterType::HighCut)
+            {
+                bandMag = 1.0f / std::sqrt(1.0f + std::pow(frequency / std::max(1.0f, freq), 2.0f * numStages));
+            }
+
+            totalMag *= bandMag;
         }
     }
 

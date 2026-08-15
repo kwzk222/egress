@@ -48,8 +48,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout EchoValhallaAudioProcessor::
 EchoValhallaAudioProcessor::EchoValhallaAudioProcessor()
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
-                     #if ! JucePlugin_IsMidiEffect
-                      #if ! JucePlugin_IsSynth
+                     #if ! JucePlugin_IsSynth
+                      #if ! JucePlugin_IsMono
                        .withInput  ("Input",  juce::AudioChannelSet::stereo(), true)
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
@@ -102,8 +102,8 @@ void EchoValhallaAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     crossoverLP.prepare(spec);
     crossoverHP.prepare(spec);
 
-    crossoverLP.type = juce::dsp::StateVariableFilter::Parameters<float>::Type::lowPass;
-    crossoverHP.type = juce::dsp::StateVariableFilter::Parameters<float>::Type::highPass;
+    crossoverLP.setType(juce::dsp::StateVariableTPTFilterType::lowpass);
+    crossoverHP.setType(juce::dsp::StateVariableTPTFilterType::highpass);
     crossoverLP.setCutoffFrequency(800.0f);
     crossoverHP.setCutoffFrequency(800.0f);
 }
@@ -118,7 +118,7 @@ void EchoValhallaAudioProcessor::pushSampleToDelayFFT(float sample)
     {
         std::fill(delaySpectrumData.begin(), delaySpectrumData.end(), 0.0f);
         forwardFFT.performFrequencyOnlyForwardTransform(delayFFTInput.data());
-        for (size_t i = 0; i < 512; ++i)
+        for (size_size_t i = 0; i < 512; ++i)
             delaySpectrumData[i] = delayFFTInput[i];
         delayFFTFifoIndex = 0;
     }
@@ -131,7 +131,7 @@ void EchoValhallaAudioProcessor::pushSampleToReverbFFT(float sample)
     {
         std::fill(reverbSpectrumData.begin(), reverbSpectrumData.end(), 0.0f);
         forwardFFT.performFrequencyOnlyForwardTransform(reverbFFTInput.data());
-        for (size_t i = 0; i < 512; ++i)
+        for (size_size_t i = 0; i < 512; ++i)
             reverbSpectrumData[i] = reverbFFTInput[i];
         reverbFFTFifoIndex = 0;
     }

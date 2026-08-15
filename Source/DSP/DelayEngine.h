@@ -74,8 +74,8 @@ private:
     ParametricEQ eq;
 
     // Saturation & Filters for Character Models
-    juce::dsp::StateVariableFilter::Filter<float> bbdFilterL;
-    juce::dsp::StateVariableFilter::Filter<float> bbdFilterR;
+    juce::dsp::StateVariableTPTFilter<float> bbdFilterL;
+    juce::dsp::StateVariableTPTFilter<float> bbdFilterR;
     float wowFlutterPhase { 0.0f };
 
     float applySaturation(float input, float drive) const;
