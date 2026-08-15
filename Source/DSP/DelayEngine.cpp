@@ -46,7 +46,7 @@ void DelayEngine::setParams(float delayTimeMs, float feedback, DelayPanMode panM
                            float duckingAmount, float satDrive, bool preEQ)
 {
     targetDelayTimeMs = delayTimeMs;
-    feedbackLevel = juce::jlimit(0.0f, 0.95f, feedback); // Safe feedback limit
+    feedbackLevel = juce::jlimit(0.0f, 0.90f, feedback);
     currentPanMode = panMode;
     currentModel = model;
     reverseMode = reverse;
@@ -100,9 +100,9 @@ void DelayEngine::applyCharacterModel(float& left, float& right)
             // Low-frequency sub-Hz wow & flutter modulation
             wowFlutterPhase += (juce::MathConstants<float>::twoPi * 1.5f) / static_cast<float>(currentSampleRate);
             if (wowFlutterPhase > juce::MathConstants<float>::twoPi) wowFlutterPhase -= juce::MathConstants<float>::twoPi;
-            float flutter = std::sin(wowFlutterPhase) * 0.05f;
-            left = applySaturation(left, 0.2f + flutter * 0.1f);
-            right = applySaturation(right, 0.2f - flutter * 0.1f);
+            float flutter = std::sin(wowFlutterPhase) * 0.02f;
+            left = applySaturation(left, 0.1f + flutter * 0.05f);
+            right = applySaturation(right, 0.1f - flutter * 0.05f);
             break;
         }
 
@@ -204,16 +204,16 @@ void DelayEngine::process(juce::AudioBuffer<float>& buffer, const juce::AudioBuf
         if (std::isnan(delayedL) || std::isinf(delayedL)) delayedL = 0.0f;
         if (std::isnan(delayedR) || std::isinf(delayedR)) delayedR = 0.0f;
 
-        // Feedback writeback with soft clipping into delay buffer
-        float fbL = std::tanh(delayedL * feedbackLevel);
-        float fbR = std::tanh(delayedR * feedbackLevel);
+        // Write to output buffer
+        buffer.setSample(0, s, delayedL);
+        buffer.setSample(1, s, delayedR);
+
+        // Write dry input plus controlled feedback back into circular buffer
+        float fbL = delayedL * feedbackLevel;
+        float fbR = delayedR * feedbackLevel;
 
         delayBuffer.setSample(0, writePos, std::tanh(inL + fbL));
         delayBuffer.setSample(1, writePos, std::tanh(inR + fbR));
-
-        // Output delayed signal
-        buffer.setSample(0, s, delayedL);
-        buffer.setSample(1, s, delayedR);
 
         writePos = (writePos + 1) % maxDelaySamples;
 

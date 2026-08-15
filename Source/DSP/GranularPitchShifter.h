@@ -51,7 +51,7 @@ public:
                 float inVal = buffer.getSample(ch, sample);
                 delayBuffer.setSample(ch, writePos, inVal);
 
-                float& grainPhase = (ch == 0) ? grainPhaseL : grainPhaseR;
+                float grainPhase = (ch == 0) ? grainPhaseL : grainPhaseR;
 
                 // Two overlapping grains with Hanning window
                 float phase1 = grainPhase;
@@ -75,12 +75,17 @@ public:
                 float w2 = 0.5f * (1.0f - std::cos(juce::MathConstants<float>::twoPi * phase2));
 
                 float outVal = (s1 * w1) + (s2 * w2);
-                buffer.setSample(ch, sample, juce::jlimit(-2.0f, 2.0f, outVal));
-
-                grainPhase += (speed / grainSizeSamples);
-                if (grainPhase >= 1.0f) grainPhase -= 1.0f;
-                if (grainPhase < 0.0f) grainPhase += 1.0f;
+                buffer.setSample(ch, sample, juce::jlimit(-1.5f, 1.5f, outVal));
             }
+
+            // Advance phases once per sample frame
+            grainPhaseL += (speed / grainSizeSamples);
+            if (grainPhaseL >= 1.0f) grainPhaseL -= 1.0f;
+            if (grainPhaseL < 0.0f) grainPhaseL += 1.0f;
+
+            grainPhaseR += (speed / grainSizeSamples);
+            if (grainPhaseR >= 1.0f) grainPhaseR -= 1.0f;
+            if (grainPhaseR < 0.0f) grainPhaseR += 1.0f;
 
             writePos = (writePos + 1) % bufferSize;
         }

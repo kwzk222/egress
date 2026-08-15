@@ -45,12 +45,17 @@ void ReverbEngine::setParams(ReverbAlgorithm algo, ReverbEra era, float decaySec
     lfoDepth = modDepth;
     isPreEQ = preEQ;
 
-    // Configure JUCE reverb parameters safely (wetLevel scaled for 8-comb sum)
-    reverbParams.roomSize = juce::jlimit(0.0f, 0.92f, decaySec / 60.0f);
-    reverbParams.damping = juce::jlimit(0.0f, 1.0f, 1.0f - diffHigh);
-    reverbParams.wetLevel = 0.15f; //JUCE Reverb sums 8 comb filters, scale wet to unity gain
+    // Configure JUCE reverb parameters cleanly.
+    // roomSize controls comb filter delay lengths (physical room size: 0.5 to 0.98).
+    // decaySec scales damping and wet feedback.
+    float roomSizeValue = juce::jlimit(0.3f, 0.98f, 0.4f + sizeParam * 0.55f);
+    float dampingValue = juce::jlimit(0.05f, 0.95f, 1.0f - diffHigh);
+
+    reverbParams.roomSize = roomSizeValue;
+    reverbParams.damping = dampingValue;
+    reverbParams.wetLevel = 0.8f;
     reverbParams.dryLevel = 0.0f;
-    reverbParams.width = juce::jlimit(0.0f, 1.0f, size);
+    reverbParams.width = juce::jlimit(0.1f, 1.0f, sizeParam);
     reverbParams.freezeMode = (decaySec >= 59.0f) ? 1.0f : 0.0f;
 
     juceReverbEngine.setParameters(reverbParams);
@@ -76,15 +81,22 @@ void ReverbEngine::applyEraTone(juce::AudioBuffer<float>& buffer)
             break;
 
         case ReverbEra::Era1980s:
-            // Bright chorus
-            lfoPhase += lfoRate * 0.01f;
-            if (lfoPhase > juce::MathConstants<float>::twoPi) lfoPhase -= juce::MathConstants<float>::twoPi;
-            for (int ch = 0; ch < numChannels; ++ch)
+        {
+            // Sample-accurate smooth bright chorus modulation
+            float phaseInc = (juce::MathConstants<float>::twoPi * lfoRate) / static_cast<float>(currentSampleRate);
+            for (int s = 0; s < numSamples; ++s)
             {
-                float mod = 1.0f + std::sin(lfoPhase) * lfoDepth * 0.1f;
-                buffer.applyGain(ch, 0, numSamples, mod);
+                lfoPhase += phaseInc;
+                if (lfoPhase > juce::MathConstants<float>::twoPi) lfoPhase -= juce::MathConstants<float>::twoPi;
+
+                float mod = 1.0f + std::sin(lfoPhase) * lfoDepth * 0.05f;
+                for (int ch = 0; ch < numChannels; ++ch)
+                {
+                    buffer.setSample(ch, s, buffer.getSample(ch, s) * mod);
+                }
             }
             break;
+        }
 
         case ReverbEra::Era2000s:
             // Pristine, no tone alterations
@@ -155,7 +167,7 @@ void ReverbEngine::process(juce::AudioBuffer<float>& buffer)
             }
             else
             {
-                data[s] = juce::jlimit(-2.0f, 2.0f, data[s]);
+                data[s] = std::tanh(data[s] * 0.8f);
             }
         }
     }
