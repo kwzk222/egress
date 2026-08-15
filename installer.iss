@@ -29,14 +29,14 @@ ArchitecturesInstallIn64BitMode=x64
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "build\EchoValhallaSuperPlugin_artefacts\Release\VST3\{#MyVST3Name}\*"; DestDir: "{app}\{#MyVST3Name}"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: DirExistsCustom('build\EchoValhallaSuperPlugin_artefacts\Release\VST3\' + '{#MyVST3Name}')
-Source: "build\EchoValhallaSuperPlugin_artefacts\VST3\{#MyVST3Name}\*"; DestDir: "{app}\{#MyVST3Name}"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: not DirExistsCustom('build\EchoValhallaSuperPlugin_artefacts\Release\VST3\' + '{#MyVST3Name}')
+Source: "build\EchoValhallaSuperPlugin_artefacts\Release\VST3\{#MyVST3Name}\*"; DestDir: "{app}\{#MyVST3Name}"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: DirExistsRelease
+Source: "build\EchoValhallaSuperPlugin_artefacts\VST3\{#MyVST3Name}\*"; DestDir: "{app}\{#MyVST3Name}"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: not DirExistsRelease
 
 [Icons]
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
 [Code]
-function DirExistsCustom(Dir: String): Boolean;
+function DirExistsRelease: Boolean;
 begin
-  Result := DirExists(ExpandConstant(Dir));
+  Result := DirExists(ExpandConstant('{#SourcePath}\build\EchoValhallaSuperPlugin_artefacts\Release\VST3\{#MyVST3Name}'));
 end;
