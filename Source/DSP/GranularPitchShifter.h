@@ -42,7 +42,7 @@ public:
         float grainSizeSamples = static_cast<float>(sr * 0.05); // 50ms grain size
         if (grainSizeSamples < 64.0f) grainSizeSamples = 64.0f;
 
-        float speed = pitchRatio - 1.0f;
+        float speed = (pitchRatio - 1.0f) / grainSizeSamples;
 
         for (int sample = 0; sample < numSamples; ++sample)
         {
@@ -79,11 +79,11 @@ public:
             }
 
             // Advance phases once per sample frame
-            grainPhaseL += (speed / grainSizeSamples);
+            grainPhaseL += speed;
             if (grainPhaseL >= 1.0f) grainPhaseL -= 1.0f;
             if (grainPhaseL < 0.0f) grainPhaseL += 1.0f;
 
-            grainPhaseR += (speed / grainSizeSamples);
+            grainPhaseR += speed;
             if (grainPhaseR >= 1.0f) grainPhaseR -= 1.0f;
             if (grainPhaseR < 0.0f) grainPhaseR += 1.0f;
 
