@@ -11,7 +11,7 @@ public:
     {
         sr = sampleRate;
         bufferSize = static_cast<int>(sampleRate * 0.2); // 200ms buffer
-        if (bufferSize < 1) bufferSize = 1;
+        if (bufferSize < 100) bufferSize = 100;
 
         delayBuffer.setSize(2, bufferSize);
         delayBuffer.clear();
@@ -32,7 +32,7 @@ public:
     // Shift in semitones: -24.0 to +24.0
     void process(juce::AudioBuffer<float>& buffer, float semitones)
     {
-        if (std::abs(semitones) < 0.01f)
+        if (std::abs(semitones) < 0.01f || bufferSize <= 0)
             return; // No shift needed
 
         const int numSamples = buffer.getNumSamples();
@@ -61,10 +61,10 @@ public:
                 float offset2 = phase2 * grainSizeSamples;
 
                 float readPos1 = static_cast<float>(writePos) - offset1;
-                while (readPos1 < 0) readPos1 += bufferSize;
+                while (readPos1 < 0.0f) readPos1 += static_cast<float>(bufferSize);
 
                 float readPos2 = static_cast<float>(writePos) - offset2;
-                while (readPos2 < 0) readPos2 += bufferSize;
+                while (readPos2 < 0.0f) readPos2 += static_cast<float>(bufferSize);
 
                 // Interpolated reads
                 float s1 = getInterpolatedSample(ch, readPos1);
@@ -75,7 +75,7 @@ public:
                 float w2 = 0.5f * (1.0f - std::cos(juce::MathConstants<float>::twoPi * phase2));
 
                 float outVal = (s1 * w1) + (s2 * w2);
-                buffer.setSample(ch, sample, outVal);
+                buffer.setSample(ch, sample, juce::jlimit(-2.0f, 2.0f, outVal));
 
                 grainPhase += (speed / grainSizeSamples);
                 if (grainPhase >= 1.0f) grainPhase -= 1.0f;
@@ -89,9 +89,13 @@ public:
 private:
     float getInterpolatedSample(int ch, float pos) const
     {
-        int i1 = static_cast<int>(pos) % bufferSize;
+        if (bufferSize <= 0) return 0.0f;
+
+        int i1 = static_cast<int>(pos);
+        i1 = ((i1 % bufferSize) + bufferSize) % bufferSize;
         int i2 = (i1 + 1) % bufferSize;
-        float frac = pos - static_cast<float>(static_cast<int>(pos));
+
+        float frac = pos - std::floor(pos);
 
         float s1 = delayBuffer.getSample(ch, i1);
         float s2 = delayBuffer.getSample(ch, i2);

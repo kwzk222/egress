@@ -15,7 +15,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout EchoValhallaAudioProcessor::
 
     // Delay Engine Controls
     params.push_back(std::make_unique<juce::AudioParameterFloat>("delayTime", "Delay Time Ms", 10.0f, 2000.0f, 350.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>("delayFeedback", "Delay Feedback", 0.0f, 1.2f, 0.4f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("delayFeedback", "Delay Feedback", 0.0f, 1.0f, 0.4f));
     params.push_back(std::make_unique<juce::AudioParameterChoice>("delayPanMode", "Delay Pan Mode", juce::StringArray { "Stereo", "PingPong", "LCR", "MidSide" }, 0));
     params.push_back(std::make_unique<juce::AudioParameterChoice>("delayModel", "Delay Model", juce::StringArray { "Studio Digital", "Analog BBD", "Tape Echo", "Oil Can", "Digital 80s" }, 0));
     params.push_back(std::make_unique<juce::AudioParameterBool>("delayReverse", "Reverse Delay", false));
@@ -86,11 +86,22 @@ void EchoValhallaAudioProcessor::prepareToPlay(double sampleRate, int samplesPer
     fxBus.prepare(sampleRate, samplesPerBlock);
 
     delayBuffer.setSize(2, samplesPerBlock);
+    delayBuffer.clear();
+
     reverbBuffer.setSize(2, samplesPerBlock);
+    reverbBuffer.clear();
+
     fxBuffer.setSize(2, samplesPerBlock);
+    fxBuffer.clear();
+
     dryBuffer.setSize(2, samplesPerBlock);
+    dryBuffer.clear();
+
     crossoverLowBuffer.setSize(2, samplesPerBlock);
+    crossoverLowBuffer.clear();
+
     crossoverHighBuffer.setSize(2, samplesPerBlock);
+    crossoverHighBuffer.clear();
 
     stutterBuffer.setSize(2, static_cast<int>(sampleRate * 2.0)); // 2 sec stutter loop
     stutterBuffer.clear();
@@ -114,7 +125,7 @@ void EchoValhallaAudioProcessor::releaseResources()
 
 void EchoValhallaAudioProcessor::pushSampleToDelayFFT(float sample)
 {
-    if (delayFFTFifoIndex == fftSize)
+    if (delayFFTFifoIndex >= fftSize)
     {
         std::fill(delaySpectrumData.begin(), delaySpectrumData.end(), 0.0f);
         forwardFFT.performFrequencyOnlyForwardTransform(delayFFTInput.data());
@@ -127,7 +138,7 @@ void EchoValhallaAudioProcessor::pushSampleToDelayFFT(float sample)
 
 void EchoValhallaAudioProcessor::pushSampleToReverbFFT(float sample)
 {
-    if (reverbFFTFifoIndex == fftSize)
+    if (reverbFFTFifoIndex >= fftSize)
     {
         std::fill(reverbSpectrumData.begin(), reverbSpectrumData.end(), 0.0f);
         forwardFFT.performFrequencyOnlyForwardTransform(reverbFFTInput.data());
@@ -146,6 +157,18 @@ void EchoValhallaAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
 
     if (numChannels < 2) return;
 
+    // Retrieve host DAW tempo if available
+    if (auto* playHead = getPlayHead())
+    {
+        if (auto position = playHead->getPosition())
+        {
+            if (position->getBpm().hasValue())
+            {
+                delayEngine.updateTempo(*position->getBpm());
+            }
+        }
+    }
+
     // Get current parameter values
     float dryWet = apvts.getRawParameterValue("masterDryWet")->load();
     float outputGainDb = apvts.getRawParameterValue("masterOutputGain")->load();
@@ -156,7 +179,7 @@ void EchoValhallaAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
 
     // Update Delay Engine Parameters
     float delayTime = apvts.getRawParameterValue("delayTime")->load();
-    float delayFeedback = freeze ? 1.0f : apvts.getRawParameterValue("delayFeedback")->load();
+    float delayFeedback = freeze ? 0.98f : apvts.getRawParameterValue("delayFeedback")->load();
     auto panMode = static_cast<DelayPanMode>(static_cast<int>(apvts.getRawParameterValue("delayPanMode")->load()));
     auto delayModel = static_cast<DelayCharacterModel>(static_cast<int>(apvts.getRawParameterValue("delayModel")->load()));
     bool reverse = apvts.getRawParameterValue("delayReverse")->load() > 0.5f;
@@ -264,16 +287,19 @@ void EchoValhallaAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
     if (stutter)
     {
         int stBufSize = stutterBuffer.getNumSamples();
-        for (int s = 0; s < numSamples; ++s)
+        if (stBufSize > 0)
         {
-            if (stutterLengthSamples > 0)
+            for (int s = 0; s < numSamples; ++s)
             {
-                int rPos = stutterReadPos % stutterLengthSamples;
-                for (int ch = 0; ch < numChannels; ++ch)
+                if (stutterLengthSamples > 0)
                 {
-                    reverbBuffer.setSample(ch, s, stutterBuffer.getSample(ch, rPos));
+                    int rPos = stutterReadPos % stutterLengthSamples;
+                    for (int ch = 0; ch < numChannels; ++ch)
+                    {
+                        reverbBuffer.setSample(ch, s, stutterBuffer.getSample(ch, rPos));
+                    }
+                    stutterReadPos++;
                 }
-                stutterReadPos++;
             }
         }
     }
@@ -281,13 +307,16 @@ void EchoValhallaAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
     {
         // Capture into stutter buffer continuously when stutter is inactive
         int stBufSize = stutterBuffer.getNumSamples();
-        for (int s = 0; s < numSamples; ++s)
+        if (stBufSize > 0)
         {
-            for (int ch = 0; ch < numChannels; ++ch)
+            for (int s = 0; s < numSamples; ++s)
             {
-                stutterBuffer.setSample(ch, stutterWritePos, reverbBuffer.getSample(ch, s));
+                for (int ch = 0; ch < numChannels; ++ch)
+                {
+                    stutterBuffer.setSample(ch, stutterWritePos, reverbBuffer.getSample(ch, s));
+                }
+                stutterWritePos = (stutterWritePos + 1) % stBufSize;
             }
-            stutterWritePos = (stutterWritePos + 1) % stBufSize;
         }
         stutterReadPos = 0;
     }
@@ -307,7 +336,7 @@ void EchoValhallaAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
         if (wetRms > 0.5f) autoGainComp = 0.5f / wetRms;
     }
 
-    // Master Output Mix: Dry + Wet
+    // Master Output Mix: Dry + Wet with hard clipping prevention
     float outputGain = juce::Decibels::decibelsToGain(outputGainDb) * autoGainComp;
 
     for (int ch = 0; ch < numChannels; ++ch)
@@ -318,7 +347,8 @@ void EchoValhallaAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
 
         for (int s = 0; s < numSamples; ++s)
         {
-            outData[s] = ((dryData[s] * (1.0f - dryWet)) + (wetData[s] * dryWet)) * outputGain;
+            float mixed = ((dryData[s] * (1.0f - dryWet)) + (wetData[s] * dryWet)) * outputGain;
+            outData[s] = std::tanh(mixed); // Soft clip to eliminate pops/blowups
         }
     }
 }

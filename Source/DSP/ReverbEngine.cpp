@@ -46,7 +46,7 @@ void ReverbEngine::setParams(ReverbAlgorithm algo, ReverbEra era, float decaySec
     isPreEQ = preEQ;
 
     // Configure JUCE reverb parameters
-    reverbParams.roomSize = juce::jlimit(0.0f, 1.0f, decaySec / 60.0f);
+    reverbParams.roomSize = juce::jlimit(0.0f, 0.95f, decaySec / 60.0f);
     reverbParams.damping = juce::jlimit(0.0f, 1.0f, 1.0f - diffHigh);
     reverbParams.wetLevel = 1.0f;
     reverbParams.dryLevel = 0.0f;
@@ -70,7 +70,7 @@ void ReverbEngine::applyEraTone(juce::AudioBuffer<float>& buffer)
                 float* data = buffer.getWritePointer(ch);
                 for (int s = 0; s < numSamples; ++s)
                 {
-                    data[s] *= 0.85f; // Soft saturation/attenuation
+                    data[s] *= 0.85f; // Soft attenuation
                 }
             }
             break;
@@ -113,7 +113,7 @@ void ReverbEngine::process(juce::AudioBuffer<float>& buffer)
         for (int s = 0; s < numSamples; ++s)
         {
             int readPos = preDelayWritePos - preDelaySamples;
-            if (readPos < 0) readPos += bufferSize;
+            while (readPos < 0) readPos += bufferSize;
 
             for (int ch = 0; ch < numChannels; ++ch)
             {
@@ -141,20 +141,17 @@ void ReverbEngine::process(juce::AudioBuffer<float>& buffer)
         shimmerPitchShifter.process(buffer, -12.0f); // Octave down deep ambient
     }
 
-    // Non-linear / Gated reverb tail truncator
-    if (currentAlgo == ReverbAlgorithm::NonLinearGated)
+    applyEraTone(buffer);
+
+    // Soft limiting to prevent buffer explosions
+    for (int ch = 0; ch < numChannels; ++ch)
     {
+        float* data = buffer.getWritePointer(ch);
         for (int s = 0; s < numSamples; ++s)
         {
-            if (s > numSamples / 2)
-            {
-                buffer.setSample(0, s, buffer.getSample(0, s) * 0.1f);
-                buffer.setSample(1, s, buffer.getSample(1, s) * 0.1f);
-            }
+            data[s] = std::tanh(data[s]);
         }
     }
-
-    applyEraTone(buffer);
 
     if (!isPreEQ)
     {

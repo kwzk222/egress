@@ -46,7 +46,7 @@ void DelayEngine::setParams(float delayTimeMs, float feedback, DelayPanMode panM
                            float duckingAmount, float satDrive, bool preEQ)
 {
     targetDelayTimeMs = delayTimeMs;
-    feedbackLevel = juce::jlimit(0.0f, 1.2f, feedback); // Allow super-infinity/freeze
+    feedbackLevel = juce::jlimit(0.0f, 0.98f, feedback); // Prevent infinite buildup explosion
     currentPanMode = panMode;
     currentModel = model;
     reverseMode = reverse;
@@ -73,7 +73,7 @@ void DelayEngine::updateTempo(double bpm)
 float DelayEngine::applySaturation(float input, float drive) const
 {
     if (drive <= 0.001f) return input;
-    float driven = input * (1.0f + drive * 3.0f);
+    float driven = input * (1.0f + drive * 2.0f);
     return std::tanh(driven) / (1.0f + drive * 0.5f);
 }
 
@@ -97,12 +97,12 @@ void DelayEngine::applyCharacterModel(float& left, float& right)
 
         case DelayCharacterModel::TapeEcho:
         {
-            // Wow & flutter (pitch modulation) + tape saturation
-            wowFlutterPhase += 0.05f;
+            // Low-frequency sub-Hz wow & flutter modulation
+            wowFlutterPhase += (juce::MathConstants<float>::twoPi * 1.5f) / static_cast<float>(currentSampleRate);
             if (wowFlutterPhase > juce::MathConstants<float>::twoPi) wowFlutterPhase -= juce::MathConstants<float>::twoPi;
-            float flutter = std::sin(wowFlutterPhase) * 0.002f;
-            left = applySaturation(left, 0.4f + flutter);
-            right = applySaturation(right, 0.4f - flutter);
+            float flutter = std::sin(wowFlutterPhase) * 0.05f;
+            left = applySaturation(left, 0.2f + flutter * 0.1f);
+            right = applySaturation(right, 0.2f - flutter * 0.1f);
             break;
         }
 
@@ -130,7 +130,7 @@ void DelayEngine::process(juce::AudioBuffer<float>& buffer, const juce::AudioBuf
     const int numSamples = buffer.getNumSamples();
     const int numChannels = buffer.getNumChannels();
 
-    if (numChannels < 2) return;
+    if (numChannels < 2 || maxDelaySamples <= 0) return;
 
     if (isPreEQ)
     {
@@ -152,31 +152,32 @@ void DelayEngine::process(juce::AudioBuffer<float>& buffer, const juce::AudioBuf
 
         // Calculate delay read positions
         float readPosL = static_cast<float>(writePos) - delayTimeSamples;
-        if (readPosL < 0.0f) readPosL += maxDelaySamples;
+        while (readPosL < 0.0f) readPosL += static_cast<float>(maxDelaySamples);
 
         float readPosR = readPosL;
         if (currentPanMode == DelayPanMode::PingPong)
         {
             readPosR = static_cast<float>(writePos) - (delayTimeSamples * 0.5f);
-            if (readPosR < 0.0f) readPosR += maxDelaySamples;
+            while (readPosR < 0.0f) readPosR += static_cast<float>(maxDelaySamples);
         }
 
         // Interpolated read from delay buffer
         int iL1 = static_cast<int>(readPosL);
+        iL1 = ((iL1 % maxDelaySamples) + maxDelaySamples) % maxDelaySamples;
         int iL2 = (iL1 + 1) % maxDelaySamples;
-        float fracL = readPosL - static_cast<float>(iL1);
+        float fracL = readPosL - std::floor(readPosL);
         float delayedL = delayBuffer.getSample(0, iL1) + fracL * (delayBuffer.getSample(0, iL2) - delayBuffer.getSample(0, iL1));
 
         int iR1 = static_cast<int>(readPosR);
+        iR1 = ((iR1 % maxDelaySamples) + maxDelaySamples) % maxDelaySamples;
         int iR2 = (iR1 + 1) % maxDelaySamples;
-        float fracR = readPosR - static_cast<float>(iR1);
+        float fracR = readPosR - std::floor(readPosR);
         float delayedR = delayBuffer.getSample(1, iR1) + fracR * (delayBuffer.getSample(1, iR2) - delayBuffer.getSample(1, iR1));
 
         if (reverseMode)
         {
             // Reverse buffer read
-            float revReadPos = static_cast<float>(maxDelaySamples - 1 - writePos);
-            int rIdx = static_cast<int>(revReadPos) % maxDelaySamples;
+            int rIdx = ((writePos - static_cast<int>(delayTimeSamples)) % maxDelaySamples + maxDelaySamples) % maxDelaySamples;
             delayedL = delayBuffer.getSample(0, rIdx);
             delayedR = delayBuffer.getSample(1, rIdx);
         }
@@ -199,16 +200,19 @@ void DelayEngine::process(juce::AudioBuffer<float>& buffer, const juce::AudioBuf
             delayedR *= 0.1f;
         }
 
-        // Output to buffer
+        // Output to buffer with soft limiter
+        delayedL = std::tanh(delayedL);
+        delayedR = std::tanh(delayedR);
+
         buffer.setSample(0, s, delayedL);
         buffer.setSample(1, s, delayedR);
 
-        // Feedback writeback
-        float fbL = delayedL * feedbackLevel;
-        float fbR = delayedR * feedbackLevel;
+        // Feedback writeback with soft clipping
+        float fbL = std::tanh(delayedL * feedbackLevel);
+        float fbR = std::tanh(delayedR * feedbackLevel);
 
-        delayBuffer.setSample(0, writePos, inL + fbL);
-        delayBuffer.setSample(1, writePos, inR + fbR);
+        delayBuffer.setSample(0, writePos, std::tanh(inL + fbL));
+        delayBuffer.setSample(1, writePos, std::tanh(inR + fbR));
 
         writePos = (writePos + 1) % maxDelaySamples;
 
