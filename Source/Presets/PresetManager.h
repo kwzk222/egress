@@ -1,6 +1,6 @@
 #pragma once
 
-#include <JuceHeader.h>
+#include <juce_audio_processors/juce_audio_processors.h>
 
 class PresetManager
 {
@@ -94,9 +94,7 @@ public:
                     float valB = stateB.getProperty(paramID);
 
                     // Continuous linear/exponential interpolation for smooth parameters
-                    float valMorphed = (morphFactor < 0.5f) ?
-                        valA + (valB - valA) * morphFactor :
-                        valA + (valB - valA) * morphFactor;
+                    float valMorphed = valA + (valB - valA) * morphFactor;
 
                     // Hard switch for discrete choices
                     if (paramID.contains("Model") || paramID.contains("Algo") || paramID.contains("Mode") || paramID.contains("Era"))

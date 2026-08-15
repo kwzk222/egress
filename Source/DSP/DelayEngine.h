@@ -1,6 +1,8 @@
 #pragma once
 
-#include <JuceHeader.h>
+#include <juce_audio_basics/juce_audio_basics.h>
+#include <juce_dsp/juce_dsp.h>
+
 #include "ParametricEQ.h"
 #include "GranularPitchShifter.h"
 

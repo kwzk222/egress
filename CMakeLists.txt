@@ -15,7 +15,8 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(JUCE)
 
 juce_add_plugin(EchoValhallaSuperPlugin
-    COMPANY_NAME "EchoValhalla Audio"
+    COMPANY_NAME "EchoValhallaAudio"
+    BUNDLE_ID "com.echovalhalla.superplugin"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT TRUE
     NEEDS_MIDI_OUTPUT FALSE
@@ -27,6 +28,8 @@ juce_add_plugin(EchoValhallaSuperPlugin
     FORMATS VST3 Standalone
     PRODUCT_NAME "EchoValhalla SuperPlugin"
 )
+
+juce_generate_juce_header(EchoValhallaSuperPlugin)
 
 target_sources(EchoValhallaSuperPlugin
     PRIVATE

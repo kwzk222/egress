@@ -1,6 +1,9 @@
 #pragma once
 
-#include <JuceHeader.h>
+#include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_dsp/juce_dsp.h>
+#include <juce_gui_extra/juce_gui_extra.h>
+
 #include "DSP/DelayEngine.h"
 #include "DSP/ReverbEngine.h"
 #include "DSP/FXBus.h"

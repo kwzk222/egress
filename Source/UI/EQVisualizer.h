@@ -1,6 +1,8 @@
 #pragma once
 
-#include <JuceHeader.h>
+#include <juce_gui_extra/juce_gui_extra.h>
+#include <juce_dsp/juce_dsp.h>
+
 #include "../DSP/ParametricEQ.h"
 
 class EQVisualizer : public juce::Component, public juce::Timer

@@ -1,6 +1,8 @@
 #pragma once
 
-#include <JuceHeader.h>
+#include <juce_gui_extra/juce_gui_extra.h>
+#include <juce_audio_processors/juce_audio_processors.h>
+
 #include "UI/DarkLookAndFeel.h"
 #include "UI/EQVisualizer.h"
 #include "PluginProcessor.h"

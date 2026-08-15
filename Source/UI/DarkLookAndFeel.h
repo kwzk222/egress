@@ -1,6 +1,6 @@
 #pragma once
 
-#include <JuceHeader.h>
+#include <juce_gui_extra/juce_gui_extra.h>
 
 class DarkLookAndFeel : public juce::LookAndFeel_V4
 {
