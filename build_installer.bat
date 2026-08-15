@@ -17,22 +17,42 @@ if %ERRORLEVEL% NEQ 0 (
     )
 )
 
-:: 2. Check for Inno Setup (ISCC.exe)
-set "ISCC_PATH=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-if not exist "!ISCC_PATH!" (
+:: 2. Check for Inno Setup (ISCC.exe) across standard install paths
+set "ISCC_PATH="
+
+if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" (
+    set "ISCC_PATH=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+) else if exist "C:\Program Files\Inno Setup 6\ISCC.exe" (
+    set "ISCC_PATH=C:\Program Files\Inno Setup 6\ISCC.exe"
+) else if exist "%LocalAppData%\Programs\Inno Setup 6\ISCC.exe" (
+    set "ISCC_PATH=%LocalAppData%\Programs\Inno Setup 6\ISCC.exe"
+) else (
     where ISCC.exe >nul 2>nul
-    if %ERRORLEVEL% EQU 0 (
-        set "ISCC_PATH=ISCC.exe"
-    ) else (
-        echo [!] Inno Setup compiler ISCC not found.
-        echo [*] Attempting to install Inno Setup via winget...
-        winget install -e --id JRSoftware.InnoSetup --accept-package-agreements --accept-source-agreements
-        if %ERRORLEVEL% NEQ 0 (
-            echo [!] Failed to install Inno Setup automatically. Please install Inno Setup manually and re-run.
-            goto ERROR_EXIT
-        )
+    if !ERRORLEVEL! EQU 0 (
+        for /f "delims=" %%I in ('where ISCC.exe') do set "ISCC_PATH=%%I"
     )
 )
+
+if "%ISCC_PATH%"=="" (
+    echo [!] Inno Setup compiler ISCC not found on system.
+    echo [*] Attempting to install Inno Setup via winget...
+    winget install -e --id JRSoftware.InnoSetup --accept-package-agreements --accept-source-agreements
+
+    :: Re-check after winget installation
+    if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" (
+        set "ISCC_PATH=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+    ) else if exist "C:\Program Files\Inno Setup 6\ISCC.exe" (
+        set "ISCC_PATH=C:\Program Files\Inno Setup 6\ISCC.exe"
+    ) else if exist "%LocalAppData%\Programs\Inno Setup 6\ISCC.exe" (
+        set "ISCC_PATH=%LocalAppData%\Programs\Inno Setup 6\ISCC.exe"
+    ) else (
+        echo [!] Inno Setup compiler still not found after installation.
+        echo [!] Please ensure Inno Setup 6 is installed from https://jrsoftware.org/isdl.php and re-run.
+        goto ERROR_EXIT
+    )
+)
+
+echo [*] Found Inno Setup Compiler at: "%ISCC_PATH%"
 
 :: 3. Configure CMake
 echo.
@@ -64,7 +84,7 @@ if not exist installer.iss (
     goto ERROR_EXIT
 )
 
-"!ISCC_PATH!" installer.iss
+"%ISCC_PATH%" installer.iss
 if %ERRORLEVEL% NEQ 0 (
     echo [!] Inno Setup Packaging Failed!
     goto ERROR_EXIT
