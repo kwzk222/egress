@@ -1,0 +1,17 @@
+EchoValhalla SuperPlugin v1.0.0
+-----------------------------------------
+Thank you for installing EchoValhalla SuperPlugin!
+
+INSTALLATION DIRECTORY:
+C:\Program Files\Common Files\VST3\EchoValhalla SuperPlugin.vst3
+
+FEATURES:
+- Super-delay engine with 5 character models (Studio Digital, Analog BBD, Tape Echo, Oil Can, Digital 80s)
+- Reverse delay & 16-step pattern sequencer
+- Reverb engine with 5 algorithms (Room, Hall, Ambient/Shimmer, Gated, Blackhole)
+- 6-band Parametric EQs with real-time FFT spectrum visualizer
+- Flexible FX Bus with Tape Saturation, Tube Warmth, Bitcrusher, and Chorus/Phaser
+- 3-tier Preset Manager, A/B Morphing slider, and Smart Randomizer
+
+EULA / LICENSE:
+Freeware - Provided AS-IS without warranty of any kind.
