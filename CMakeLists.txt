@@ -36,9 +36,6 @@ target_sources(EchoValhallaSuperPlugin
         Source/DSP/ReverbEngine.cpp
         Source/DSP/ParametricEQ.cpp
         Source/DSP/FXBus.cpp
-        Source/Presets/PresetManager.cpp
-        Source/UI/DarkLookAndFeel.cpp
-        Source/UI/EQVisualizer.cpp
 )
 
 target_compile_definitions(EchoValhallaSuperPlugin

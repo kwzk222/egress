@@ -18,6 +18,7 @@ DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 LicenseFile=EULA.txt
 OutputBaseFilename=EchoValhalla_SuperPlugin_Setup_v1.0.0
+OutputDir=.
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -28,10 +29,14 @@ ArchitecturesInstallIn64BitMode=x64
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "build\EchoValhallaSuperPlugin_artefacts\Release\VST3\{#MyVST3Name}\*"; DestDir: "{app}\{#MyVST3Name}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "build\EchoValhallaSuperPlugin_artefacts\Release\VST3\{#MyVST3Name}\*"; DestDir: "{app}\{#MyVST3Name}"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: DirExistsCustom('build\EchoValhallaSuperPlugin_artefacts\Release\VST3\' + '{#MyVST3Name}')
+Source: "build\EchoValhallaSuperPlugin_artefacts\VST3\{#MyVST3Name}\*"; DestDir: "{app}\{#MyVST3Name}"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: not DirExistsCustom('build\EchoValhallaSuperPlugin_artefacts\Release\VST3\' + '{#MyVST3Name}')
 
 [Icons]
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 
-[Run]
-Description: "View Readme"; Filename: "{app}\{#MyVST3Name}\Readme.txt"; Flags: postinstall shellexec skipifsilent unchecked
+[Code]
+function DirExistsCustom(Dir: String): Boolean;
+begin
+  Result := DirExists(ExpandConstant(Dir));
+end;

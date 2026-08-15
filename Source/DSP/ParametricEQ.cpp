@@ -84,8 +84,8 @@ void ParametricEQ::updateBandCoefficients(int bandIndex)
     {
         for (int stage = 0; stage < numStages; ++stage)
         {
-            *filtersL[bandIndex][stage].coefficients = *coeffs;
-            *filtersR[bandIndex][stage].coefficients = *coeffs;
+            filtersL[bandIndex][stage].coefficients = coeffs;
+            filtersR[bandIndex][stage].coefficients = coeffs;
         }
     }
 }
