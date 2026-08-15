@@ -46,7 +46,7 @@ void ReverbEngine::setParams(ReverbAlgorithm algo, ReverbEra era, float decaySec
     isPreEQ = preEQ;
 
     // Configure JUCE reverb parameters safely
-    reverbParams.roomSize = juce::jlimit(0.0f, 0.90f, decaySec / 60.0f);
+    reverbParams.roomSize = juce::jlimit(0.0f, 0.85f, decaySec / 60.0f);
     reverbParams.damping = juce::jlimit(0.0f, 1.0f, 1.0f - diffHigh);
     reverbParams.wetLevel = 1.0f;
     reverbParams.dryLevel = 0.0f;
@@ -143,13 +143,20 @@ void ReverbEngine::process(juce::AudioBuffer<float>& buffer)
 
     applyEraTone(buffer);
 
-    // Soft limiting to prevent buffer explosions
+    // Soft limiting and NaN sanitization
     for (int ch = 0; ch < numChannels; ++ch)
     {
         float* data = buffer.getWritePointer(ch);
         for (int s = 0; s < numSamples; ++s)
         {
-            data[s] = std::tanh(data[s]);
+            if (std::isnan(data[s]) || std::isinf(data[s]))
+            {
+                data[s] = 0.0f;
+            }
+            else
+            {
+                data[s] = std::tanh(data[s]);
+            }
         }
     }
 

@@ -200,6 +200,10 @@ void DelayEngine::process(juce::AudioBuffer<float>& buffer, const juce::AudioBuf
             delayedR *= 0.1f;
         }
 
+        // Ensure clean, non-NaN values
+        if (std::isnan(delayedL) || std::isinf(delayedL)) delayedL = 0.0f;
+        if (std::isnan(delayedR) || std::isinf(delayedR)) delayedR = 0.0f;
+
         buffer.setSample(0, s, delayedL);
         buffer.setSample(1, s, delayedR);
 

@@ -124,6 +124,23 @@ void ParametricEQ::process(juce::AudioBuffer<float>& buffer)
             }
         }
     }
+
+    // Sanitize output samples against NaN / infinity
+    for (int ch = 0; ch < numChannels; ++ch)
+    {
+        float* data = buffer.getWritePointer(ch);
+        for (int s = 0; s < numSamples; ++s)
+        {
+            if (std::isnan(data[s]) || std::isinf(data[s]))
+            {
+                data[s] = 0.0f;
+            }
+            else
+            {
+                data[s] = juce::jlimit(-2.0f, 2.0f, data[s]);
+            }
+        }
+    }
 }
 
 float ParametricEQ::getMagnitudeForFrequency(float frequency, double sampleRate) const
