@@ -45,10 +45,10 @@ void ReverbEngine::setParams(ReverbAlgorithm algo, ReverbEra era, float decaySec
     lfoDepth = modDepth;
     isPreEQ = preEQ;
 
-    // Configure JUCE reverb parameters safely
-    reverbParams.roomSize = juce::jlimit(0.0f, 0.85f, decaySec / 60.0f);
+    // Configure JUCE reverb parameters safely (wetLevel scaled for 8-comb sum)
+    reverbParams.roomSize = juce::jlimit(0.0f, 0.92f, decaySec / 60.0f);
     reverbParams.damping = juce::jlimit(0.0f, 1.0f, 1.0f - diffHigh);
-    reverbParams.wetLevel = 1.0f;
+    reverbParams.wetLevel = 0.15f; //JUCE Reverb sums 8 comb filters, scale wet to unity gain
     reverbParams.dryLevel = 0.0f;
     reverbParams.width = juce::jlimit(0.0f, 1.0f, size);
     reverbParams.freezeMode = (decaySec >= 59.0f) ? 1.0f : 0.0f;
@@ -155,7 +155,7 @@ void ReverbEngine::process(juce::AudioBuffer<float>& buffer)
             }
             else
             {
-                data[s] = std::tanh(data[s]);
+                data[s] = juce::jlimit(-2.0f, 2.0f, data[s]);
             }
         }
     }

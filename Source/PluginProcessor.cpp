@@ -9,13 +9,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout EchoValhallaAudioProcessor::
     params.push_back(std::make_unique<juce::AudioParameterFloat>("masterDryWet", "Master Dry/Wet", 0.0f, 1.0f, 0.5f));
     params.push_back(std::make_unique<juce::AudioParameterFloat>("masterOutputGain", "Master Gain dB", -24.0f, 24.0f, 0.0f));
     params.push_back(std::make_unique<juce::AudioParameterChoice>("masterRouting", "Routing Mode", juce::StringArray { "Serial D->R", "Serial R->D", "Parallel", "Crossover" }, 0));
-    params.push_back(std::make_unique<juce::AudioParameterBool>("masterAutoGain", "Auto Gain", true));
+    params.push_back(std::make_unique<juce::AudioParameterBool>("masterAutoGain", "Auto Gain", false));
     params.push_back(std::make_unique<juce::AudioParameterBool>("masterFreeze", "Freeze", false));
     params.push_back(std::make_unique<juce::AudioParameterBool>("masterStutter", "Stutter", false));
 
     // Delay Engine Controls
     params.push_back(std::make_unique<juce::AudioParameterFloat>("delayTime", "Delay Time Ms", 10.0f, 2000.0f, 350.0f));
-    params.push_back(std::make_unique<juce::AudioParameterFloat>("delayFeedback", "Delay Feedback", 0.0f, 1.0f, 0.4f));
+    params.push_back(std::make_unique<juce::AudioParameterFloat>("delayFeedback", "Delay Feedback", 0.0f, 0.95f, 0.4f));
     params.push_back(std::make_unique<juce::AudioParameterChoice>("delayPanMode", "Delay Pan Mode", juce::StringArray { "Stereo", "PingPong", "LCR", "MidSide" }, 0));
     params.push_back(std::make_unique<juce::AudioParameterChoice>("delayModel", "Delay Model", juce::StringArray { "Studio Digital", "Analog BBD", "Tape Echo", "Oil Can", "Digital 80s" }, 0));
     params.push_back(std::make_unique<juce::AudioParameterBool>("delayReverse", "Reverse Delay", false));
@@ -142,7 +142,7 @@ void EchoValhallaAudioProcessor::pushSampleToReverbFFT(float sample)
     {
         std::fill(reverbSpectrumData.begin(), reverbSpectrumData.end(), 0.0f);
         forwardFFT.performFrequencyOnlyForwardTransform(reverbFFTInput.data());
-        for (size_t i = 0; i < 512; ++i)
+        for (size_size_t i = 0; i < 512; ++i)
             reverbSpectrumData[i] = reverbFFTInput[i];
         reverbFFTFifoIndex = 0;
     }
@@ -179,7 +179,7 @@ void EchoValhallaAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
 
     // Update Delay Engine Parameters
     float delayTime = apvts.getRawParameterValue("delayTime")->load();
-    float delayFeedback = freeze ? 0.98f : apvts.getRawParameterValue("delayFeedback")->load();
+    float delayFeedback = freeze ? 0.95f : apvts.getRawParameterValue("delayFeedback")->load();
     auto panMode = static_cast<DelayPanMode>(static_cast<int>(apvts.getRawParameterValue("delayPanMode")->load()));
     auto delayModel = static_cast<DelayCharacterModel>(static_cast<int>(apvts.getRawParameterValue("delayModel")->load()));
     bool reverse = apvts.getRawParameterValue("delayReverse")->load() > 0.5f;
@@ -328,7 +328,7 @@ void EchoValhallaAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
         pushSampleToReverbFFT(reverbBuffer.getSample(0, s));
     }
 
-    // Auto Gain compensation calculation
+    // Auto Gain compensation calculation (only when explicitly enabled)
     float autoGainComp = 1.0f;
     if (autoGain)
     {
@@ -336,7 +336,7 @@ void EchoValhallaAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
         if (wetRms > 0.5f) autoGainComp = 0.5f / wetRms;
     }
 
-    // Master Output Mix: Dry + Wet with hard clipping prevention
+    // Master Output Mix: Dry + Wet
     float outputGain = juce::Decibels::decibelsToGain(outputGainDb) * autoGainComp;
 
     for (int ch = 0; ch < numChannels; ++ch)
@@ -348,7 +348,7 @@ void EchoValhallaAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
         for (int s = 0; s < numSamples; ++s)
         {
             float mixed = ((dryData[s] * (1.0f - dryWet)) + (wetData[s] * dryWet)) * outputGain;
-            outData[s] = std::tanh(mixed); // Soft clip to eliminate pops/blowups
+            outData[s] = juce::jlimit(-1.0f, 1.0f, mixed);
         }
     }
 }
