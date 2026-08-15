@@ -76,7 +76,30 @@ if %ERRORLEVEL% NEQ 0 (
 
 cd ..
 
-:: 5. Run Inno Setup Compiler
+:: 5. Copy built VST3 bundle to dist folder for installer packaging
+echo.
+echo [*] Staging VST3 bundle into dist folder...
+if not exist "dist" mkdir dist
+
+set "BUILT_VST3_PATH="
+if exist "build\EchoValhallaSuperPlugin_artefacts\Release\VST3\EchoValhalla SuperPlugin.vst3" (
+    set "BUILT_VST3_PATH=build\EchoValhallaSuperPlugin_artefacts\Release\VST3\EchoValhalla SuperPlugin.vst3"
+) else if exist "build\EchoValhallaSuperPlugin_artefacts\VST3\EchoValhalla SuperPlugin.vst3" (
+    set "BUILT_VST3_PATH=build\EchoValhallaSuperPlugin_artefacts\VST3\EchoValhalla SuperPlugin.vst3"
+)
+
+if "%BUILT_VST3_PATH%"=="" (
+    echo [!] Could not locate compiled .vst3 bundle in build directory!
+    goto ERROR_EXIT
+)
+
+xcopy /E /I /Y "%BUILT_VST3_PATH%" "dist\EchoValhalla SuperPlugin.vst3"
+if %ERRORLEVEL% NEQ 0 (
+    echo [!] Failed to copy VST3 bundle to dist folder!
+    goto ERROR_EXIT
+)
+
+:: 6. Run Inno Setup Compiler
 echo.
 echo [*] Packaging Installer using Inno Setup Compiler...
 if not exist installer.iss (

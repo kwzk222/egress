@@ -29,14 +29,7 @@ ArchitecturesInstallIn64BitMode=x64
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "build\EchoValhallaSuperPlugin_artefacts\Release\VST3\{#MyVST3Name}\*"; DestDir: "{app}\{#MyVST3Name}"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: DirExistsRelease
-Source: "build\EchoValhallaSuperPlugin_artefacts\VST3\{#MyVST3Name}\*"; DestDir: "{app}\{#MyVST3Name}"; Flags: ignoreversion recursesubdirs createallsubdirs; Check: not DirExistsRelease
+Source: "dist\{#MyVST3Name}\*"; DestDir: "{app}\{#MyVST3Name}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
-
-[Code]
-function DirExistsRelease: Boolean;
-begin
-  Result := DirExists(ExpandConstant('{#SourcePath}\build\EchoValhallaSuperPlugin_artefacts\Release\VST3\{#MyVST3Name}'));
-end;
