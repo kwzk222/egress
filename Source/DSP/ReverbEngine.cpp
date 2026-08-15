@@ -17,7 +17,7 @@ void ReverbEngine::prepare(double sampleRate, int samplesPerBlock)
     preDelayBuffer.clear();
     preDelayWritePos = 0;
 
-    juce::dsp::ProcessSpec spec { sampleRate, static_cast<juce::uint32>(samplesPerBlock), 2 };
+    juce::dsp::ProcessSpec spec { sampleRate, static_cast<juce::uint32>(samplesPerBlock), 1 };
     eq.prepare(spec);
 }
 
@@ -45,8 +45,8 @@ void ReverbEngine::setParams(ReverbAlgorithm algo, ReverbEra era, float decaySec
     lfoDepth = modDepth;
     isPreEQ = preEQ;
 
-    // Configure JUCE reverb parameters
-    reverbParams.roomSize = juce::jlimit(0.0f, 0.95f, decaySec / 60.0f);
+    // Configure JUCE reverb parameters safely
+    reverbParams.roomSize = juce::jlimit(0.0f, 0.90f, decaySec / 60.0f);
     reverbParams.damping = juce::jlimit(0.0f, 1.0f, 1.0f - diffHigh);
     reverbParams.wetLevel = 1.0f;
     reverbParams.dryLevel = 0.0f;

@@ -20,7 +20,7 @@ void DelayEngine::prepare(double sampleRate, int samplesPerBlock)
 
     pitchShifter.prepare(sampleRate, samplesPerBlock);
 
-    juce::dsp::ProcessSpec spec { sampleRate, static_cast<juce::uint32>(samplesPerBlock), 2 };
+    juce::dsp::ProcessSpec spec { sampleRate, static_cast<juce::uint32>(samplesPerBlock), 1 };
     eq.prepare(spec);
 
     bbdFilterL.prepare(spec);
@@ -46,7 +46,7 @@ void DelayEngine::setParams(float delayTimeMs, float feedback, DelayPanMode panM
                            float duckingAmount, float satDrive, bool preEQ)
 {
     targetDelayTimeMs = delayTimeMs;
-    feedbackLevel = juce::jlimit(0.0f, 0.98f, feedback); // Prevent infinite buildup explosion
+    feedbackLevel = juce::jlimit(0.0f, 0.95f, feedback); // Safe feedback limit
     currentPanMode = panMode;
     currentModel = model;
     reverseMode = reverse;
@@ -87,7 +87,7 @@ void DelayEngine::applyCharacterModel(float& left, float& right)
 
         case DelayCharacterModel::AnalogBBD:
         {
-            // BBD darkening & clock noise / mild saturation
+            // BBD darkening
             left = bbdFilterL.processSample(0, left);
             right = bbdFilterR.processSample(0, right);
             left = applySaturation(left, 0.2f);
@@ -199,10 +199,6 @@ void DelayEngine::process(juce::AudioBuffer<float>& buffer, const juce::AudioBuf
             delayedL *= 0.1f;
             delayedR *= 0.1f;
         }
-
-        // Output to buffer with soft limiter
-        delayedL = std::tanh(delayedL);
-        delayedR = std::tanh(delayedR);
 
         buffer.setSample(0, s, delayedL);
         buffer.setSample(1, s, delayedR);

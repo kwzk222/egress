@@ -12,12 +12,15 @@ void ParametricEQ::prepare(const juce::dsp::ProcessSpec& spec)
 {
     currentSampleRate = spec.sampleRate;
 
+    juce::dsp::ProcessSpec monoSpec = spec;
+    monoSpec.numChannels = 1;
+
     for (int b = 0; b < numBands; ++b)
     {
         for (int stage = 0; stage < 4; ++stage)
         {
-            filtersL[b][stage].prepare(spec);
-            filtersR[b][stage].prepare(spec);
+            filtersL[b][stage].prepare(monoSpec);
+            filtersR[b][stage].prepare(monoSpec);
             filtersL[b][stage].reset();
             filtersR[b][stage].reset();
         }
@@ -95,6 +98,8 @@ void ParametricEQ::process(juce::AudioBuffer<float>& buffer)
     const int numChannels = buffer.getNumChannels();
     const int numSamples = buffer.getNumSamples();
 
+    if (numChannels < 1 || numSamples <= 0) return;
+
     for (int b = 0; b < numBands; ++b)
     {
         if (!bandConfigs[b].enabled) continue;
@@ -103,16 +108,17 @@ void ParametricEQ::process(juce::AudioBuffer<float>& buffer)
 
         for (int stage = 0; stage < numStages; ++stage)
         {
-            if (numChannels > 0)
+            if (numChannels >= 1)
             {
-                juce::dsp::AudioBlock<float> blockL(buffer.getArrayOfWritePointers(), 1, numSamples);
+                float* leftData[] = { buffer.getWritePointer(0) };
+                juce::dsp::AudioBlock<float> blockL(leftData, 1, numSamples);
                 juce::dsp::ProcessContextReplacing<float> contextL(blockL);
                 filtersL[b][stage].process(contextL);
             }
-            if (numChannels > 1)
+            if (numChannels >= 2)
             {
-                float* rightChannelData[] = { buffer.getWritePointer(1) };
-                juce::dsp::AudioBlock<float> blockR(rightChannelData, 1, numSamples);
+                float* rightData[] = { buffer.getWritePointer(1) };
+                juce::dsp::AudioBlock<float> blockR(rightData, 1, numSamples);
                 juce::dsp::ProcessContextReplacing<float> contextR(blockR);
                 filtersR[b][stage].process(contextR);
             }
@@ -122,6 +128,7 @@ void ParametricEQ::process(juce::AudioBuffer<float>& buffer)
 
 float ParametricEQ::getMagnitudeForFrequency(float frequency, double sampleRate) const
 {
+    juce::ignoreUnused(sampleRate);
     float totalMag = 1.0f;
 
     for (int b = 0; b < numBands; ++b)
@@ -137,7 +144,6 @@ float ParametricEQ::getMagnitudeForFrequency(float frequency, double sampleRate)
             float gainDb = bandConfigs[b].gainDb;
             float q = bandConfigs[b].q;
 
-            // Direct analytical magnitude estimation
             float ratio = frequency / std::max(1.0f, freq);
             float bandMag = 1.0f;
 
