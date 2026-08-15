@@ -9,6 +9,10 @@
 #include "DSP/FXBus.h"
 #include "Presets/PresetManager.h"
 
+#ifndef JucePlugin_Name
+#define JucePlugin_Name "EchoValhalla SuperPlugin"
+#endif
+
 class EchoValhallaAudioProcessor : public juce::AudioProcessor
 {
 public:
