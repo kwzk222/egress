@@ -204,15 +204,16 @@ void DelayEngine::process(juce::AudioBuffer<float>& buffer, const juce::AudioBuf
         if (std::isnan(delayedL) || std::isinf(delayedL)) delayedL = 0.0f;
         if (std::isnan(delayedR) || std::isinf(delayedR)) delayedR = 0.0f;
 
-        buffer.setSample(0, s, delayedL);
-        buffer.setSample(1, s, delayedR);
-
-        // Feedback writeback with soft clipping
+        // Feedback writeback with soft clipping into delay buffer
         float fbL = std::tanh(delayedL * feedbackLevel);
         float fbR = std::tanh(delayedR * feedbackLevel);
 
         delayBuffer.setSample(0, writePos, std::tanh(inL + fbL));
         delayBuffer.setSample(1, writePos, std::tanh(inR + fbR));
+
+        // Output delayed signal
+        buffer.setSample(0, s, delayedL);
+        buffer.setSample(1, s, delayedR);
 
         writePos = (writePos + 1) % maxDelaySamples;
 

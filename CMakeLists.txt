@@ -60,6 +60,6 @@ target_link_libraries(EchoValhallaSuperPlugin
 )
 
 # Unit Test executable for verifying DSP logic during build
-add_executable(DSPTests Tests/DSPTests.cpp Source/DSP/DelayEngine.cpp Source/DSP/ParametricEQ.cpp Source/DSP/ReverbEngine.cpp Source/DSP/FXBus.cpp)
+add_executable(DSPTests Tests/ProcessorTest.cpp Source/PluginProcessor.cpp Source/PluginEditor.cpp Source/DSP/DelayEngine.cpp Source/DSP/ParametricEQ.cpp Source/DSP/ReverbEngine.cpp Source/DSP/FXBus.cpp)
 target_include_directories(DSPTests PRIVATE Source)
 target_link_libraries(DSPTests PRIVATE juce::juce_audio_utils juce::juce_dsp juce::juce_gui_extra)
