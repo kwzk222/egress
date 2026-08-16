@@ -101,8 +101,8 @@ void DelayEngine::applyCharacterModel(float& left, float& right)
             wowFlutterPhase += (juce::MathConstants<float>::twoPi * 1.5f) / static_cast<float>(currentSampleRate);
             if (wowFlutterPhase > juce::MathConstants<float>::twoPi) wowFlutterPhase -= juce::MathConstants<float>::twoPi;
             float flutter = std::sin(wowFlutterPhase) * 0.02f;
-            left = applySaturation(left, 0.1f + flutter * 0.05f);
-            right = applySaturation(right, 0.1f - flutter * 0.05f);
+            left = applySaturation(left, saturationDrive + flutter * 0.05f);
+            right = applySaturation(right, saturationDrive - flutter * 0.05f);
             break;
         }
 
