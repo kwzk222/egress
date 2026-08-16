@@ -116,9 +116,13 @@ if %ERRORLEVEL% NEQ 0 (
 echo.
 echo ===================================================
 echo   BUILD & PACKAGING SUCCESSFUL!
-echo   Installer setup .exe has been created.
+echo   Launching Installer...
 echo ===================================================
-pause
+
+if exist "EchoValhalla_SuperPlugin_Setup_v1.0.0.exe" (
+    start "" "EchoValhalla_SuperPlugin_Setup_v1.0.0.exe"
+)
+
 exit /b 0
 
 :ERROR_EXIT_CD

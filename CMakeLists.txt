@@ -60,7 +60,7 @@ target_link_libraries(EchoValhallaSuperPlugin
 )
 
 # Headless Unit Test executable for verifying DSP logic during build
-add_executable(DSPTests Tests/ProcessorTest.cpp Source/PluginProcessor.cpp Source/PluginEditor.cpp Source/DSP/DelayEngine.cpp Source/DSP/ParametricEQ.cpp Source/DSP/ReverbEngine.cpp Source/DSP/FXBus.cpp)
+add_executable(DSPTests Tests/SampleTest.cpp Source/PluginProcessor.cpp Source/PluginEditor.cpp Source/DSP/DelayEngine.cpp Source/DSP/ParametricEQ.cpp Source/DSP/ReverbEngine.cpp Source/DSP/FXBus.cpp)
 target_include_directories(DSPTests PRIVATE Source)
 target_compile_definitions(DSPTests PRIVATE JUCE_HEADLESS_PLUGIN_CLIENT=1 JUCE_GUI_WITHOUT_COMMAND_MANAGER=1 JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0)
 target_link_libraries(DSPTests PRIVATE juce::juce_audio_basics juce::juce_audio_processors juce::juce_dsp juce::juce_gui_basics)
