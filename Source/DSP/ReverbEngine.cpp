@@ -45,15 +45,15 @@ void ReverbEngine::setParams(ReverbAlgorithm algo, ReverbEra era, float decaySec
     lfoDepth = modDepth;
     isPreEQ = preEQ;
 
-    // Configure JUCE reverb parameters cleanly.
-    // roomSize controls comb filter delay lengths (physical room size: 0.5 to 0.98).
-    // decaySec scales damping and wet feedback.
-    float roomSizeValue = juce::jlimit(0.3f, 0.98f, 0.4f + sizeParam * 0.55f);
+    // Configure JUCE reverb parameters safely.
+    // JUCE Reverb sums 8 parallel comb filters; wetLevel must be scaled down (0.12f)
+    // so output wet signal magnitude matches dry input unity level without digital distortion/sawtooth clipping.
+    float roomSizeValue = juce::jlimit(0.3f, 0.95f, 0.4f + sizeParam * 0.55f);
     float dampingValue = juce::jlimit(0.05f, 0.95f, 1.0f - diffHigh);
 
     reverbParams.roomSize = roomSizeValue;
     reverbParams.damping = dampingValue;
-    reverbParams.wetLevel = 0.8f;
+    reverbParams.wetLevel = 0.12f;
     reverbParams.dryLevel = 0.0f;
     reverbParams.width = juce::jlimit(0.1f, 1.0f, sizeParam);
     reverbParams.freezeMode = (decaySec >= 59.0f) ? 1.0f : 0.0f;
@@ -167,7 +167,7 @@ void ReverbEngine::process(juce::AudioBuffer<float>& buffer)
             }
             else
             {
-                data[s] = std::tanh(data[s] * 0.8f);
+                data[s] = juce::jlimit(-1.0f, 1.0f, data[s]);
             }
         }
     }
