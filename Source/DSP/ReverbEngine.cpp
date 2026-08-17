@@ -52,29 +52,29 @@ void ReverbEngine::setParams(ReverbAlgorithm algo, ReverbEra era, float decaySec
     switch (currentAlgo)
     {
         case ReverbAlgorithm::RoomChamber:
-            roomSizeValue = juce::jlimit(0.2f, 0.6f, 0.2f + sizeParam * 0.4f);
+            roomSizeValue = juce::jlimit(0.2f, 0.55f, 0.2f + sizeParam * 0.35f);
             break;
 
         case ReverbAlgorithm::HallPlate:
-            roomSizeValue = juce::jlimit(0.5f, 0.88f, 0.5f + sizeParam * 0.38f);
+            roomSizeValue = juce::jlimit(0.4f, 0.80f, 0.4f + sizeParam * 0.40f);
             break;
 
         case ReverbAlgorithm::AmbientShimmer:
-            roomSizeValue = juce::jlimit(0.7f, 0.90f, 0.7f + sizeParam * 0.20f);
+            roomSizeValue = juce::jlimit(0.5f, 0.85f, 0.5f + sizeParam * 0.35f);
             break;
 
         case ReverbAlgorithm::NonLinearGated:
-            roomSizeValue = juce::jlimit(0.3f, 0.7f, 0.3f + sizeParam * 0.4f);
+            roomSizeValue = juce::jlimit(0.2f, 0.60f, 0.2f + sizeParam * 0.40f);
             break;
 
         case ReverbAlgorithm::BlackoutBlackhole:
-            roomSizeValue = juce::jlimit(0.8f, 0.92f, 0.8f + sizeParam * 0.12f);
+            roomSizeValue = juce::jlimit(0.6f, 0.85f, 0.6f + sizeParam * 0.25f);
             break;
     }
 
     reverbParams.roomSize = roomSizeValue;
     reverbParams.damping = dampingValue;
-    reverbParams.wetLevel = 0.35f; // Pure clean reverb tail without comb filter clipping
+    reverbParams.wetLevel = 0.25f; // Safe wet scaling to prevent comb filter buildup
     reverbParams.dryLevel = 0.0f;
     reverbParams.width = juce::jlimit(0.1f, 1.0f, sizeParam);
     reverbParams.freezeMode = (decaySec >= 59.0f) ? 1.0f : 0.0f;

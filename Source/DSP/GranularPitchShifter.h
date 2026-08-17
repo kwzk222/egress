@@ -79,7 +79,8 @@ public:
                 w2 *= w2;
 
                 float outVal = (s1 * w1) + (s2 * w2);
-                buffer.setSample(ch, sample, std::tanh(outVal));
+                // Apply 0.7f attenuation factor to prevent pitch shifter feedback runaway
+                buffer.setSample(ch, sample, std::tanh(outVal * 0.7f));
             }
 
             // Advance phases once per sample frame
