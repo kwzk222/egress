@@ -42,7 +42,7 @@ public:
         float grainSizeSamples = static_cast<float>(sr * 0.05); // 50ms grain size
         if (grainSizeSamples < 64.0f) grainSizeSamples = 64.0f;
 
-        // Speed at which grain phase advances (0 to 1) per sample
+        // Speed at which grain phase advances per sample
         float speed = (pitchRatio - 1.0f) / grainSizeSamples;
 
         for (int sample = 0; sample < numSamples; ++sample)
@@ -54,13 +54,13 @@ public:
 
                 float grainPhase = (ch == 0) ? grainPhaseL : grainPhaseR;
 
-                // Two overlapping grains offset by 180 degrees (0.5)
+                // Two overlapping grains offset by 0.5 (180 degrees)
                 float phase1 = grainPhase;
                 float phase2 = std::fmod(grainPhase + 0.5f, 1.0f);
 
-                // Offset decreases as phase advances so read pointer moves at speed pitchRatio
-                float offset1 = grainSizeSamples * (1.0f - phase1);
-                float offset2 = grainSizeSamples * (1.0f - phase2);
+                // Offset calculation: (1.0 - phase) * grainSize ensure read pointer moves at pitchRatio speed
+                float offset1 = (1.0f - phase1) * grainSizeSamples;
+                float offset2 = (1.0f - phase2) * grainSizeSamples;
 
                 float readPos1 = static_cast<float>(writePos) - offset1;
                 while (readPos1 < 0.0f) readPos1 += static_cast<float>(bufferSize);
@@ -72,7 +72,7 @@ public:
                 float s1 = getInterpolatedSample(ch, readPos1);
                 float s2 = getInterpolatedSample(ch, readPos2);
 
-                // Smooth Hanning windows
+                // Constant-power Hanning windowing
                 float w1 = std::sin(juce::MathConstants<float>::pi * phase1);
                 float w2 = std::sin(juce::MathConstants<float>::pi * phase2);
                 w1 *= w1;
