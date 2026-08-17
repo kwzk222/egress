@@ -45,15 +45,36 @@ void ReverbEngine::setParams(ReverbAlgorithm algo, ReverbEra era, float decaySec
     lfoDepth = modDepth;
     isPreEQ = preEQ;
 
-    // Configure JUCE reverb parameters safely.
-    // JUCE Reverb sums 8 parallel comb filters; wetLevel must be scaled down (0.12f)
-    // so output wet signal magnitude matches dry input unity level without digital distortion/sawtooth clipping.
-    float roomSizeValue = juce::jlimit(0.3f, 0.95f, 0.4f + sizeParam * 0.55f);
+    // Room size algorithm parameter mapping
+    float roomSizeValue = 0.5f;
     float dampingValue = juce::jlimit(0.05f, 0.95f, 1.0f - diffHigh);
+
+    switch (currentAlgo)
+    {
+        case ReverbAlgorithm::RoomChamber:
+            roomSizeValue = juce::jlimit(0.2f, 0.6f, 0.2f + sizeParam * 0.4f);
+            break;
+
+        case ReverbAlgorithm::HallPlate:
+            roomSizeValue = juce::jlimit(0.5f, 0.88f, 0.5f + sizeParam * 0.38f);
+            break;
+
+        case ReverbAlgorithm::AmbientShimmer:
+            roomSizeValue = juce::jlimit(0.7f, 0.90f, 0.7f + sizeParam * 0.20f);
+            break;
+
+        case ReverbAlgorithm::NonLinearGated:
+            roomSizeValue = juce::jlimit(0.3f, 0.7f, 0.3f + sizeParam * 0.4f);
+            break;
+
+        case ReverbAlgorithm::BlackoutBlackhole:
+            roomSizeValue = juce::jlimit(0.8f, 0.92f, 0.8f + sizeParam * 0.12f);
+            break;
+    }
 
     reverbParams.roomSize = roomSizeValue;
     reverbParams.damping = dampingValue;
-    reverbParams.wetLevel = 0.12f;
+    reverbParams.wetLevel = 0.35f; // Pure clean reverb tail without comb filter clipping
     reverbParams.dryLevel = 0.0f;
     reverbParams.width = juce::jlimit(0.1f, 1.0f, sizeParam);
     reverbParams.freezeMode = (decaySec >= 59.0f) ? 1.0f : 0.0f;
@@ -143,14 +164,10 @@ void ReverbEngine::process(juce::AudioBuffer<float>& buffer)
         juceReverbEngine.processStereo(buffer.getWritePointer(0), buffer.getWritePointer(1), numSamples);
     }
 
-    // Shimmer Pitch Shifting in feedback for AmbientShimmer algorithm (+12 semitones / octave up)
+    // Shimmer Pitch Shifting ONLY for AmbientShimmer algorithm
     if (currentAlgo == ReverbAlgorithm::AmbientShimmer)
     {
         shimmerPitchShifter.process(buffer, 12.0f);
-    }
-    else if (currentAlgo == ReverbAlgorithm::BlackoutBlackhole)
-    {
-        shimmerPitchShifter.process(buffer, -12.0f); // Octave down deep ambient
     }
 
     applyEraTone(buffer);
