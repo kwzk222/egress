@@ -8,8 +8,36 @@ void ReverbEngine::prepare(double sampleRate, int samplesPerBlock)
 {
     currentSampleRate = sampleRate;
 
-    juceReverbEngine.setSampleRate(sampleRate);
-    juceReverbEngine.reset();
+    // Prepare Dattorro input allpass diffusers with prime delay lengths
+    int diffDelaysL[4] = { 142, 107, 379, 277 };
+    int diffDelaysR[4] = { 149, 113, 389, 281 };
+
+    for (int i = 0; i < 4; ++i)
+    {
+        inDiffL[i].prepare(static_cast<int>(diffDelaysL[i] * sampleRate / 44100.0), 0.65f);
+        inDiffR[i].prepare(static_cast<int>(diffDelaysR[i] * sampleRate / 44100.0), 0.65f);
+    }
+
+    // Prepare loop delays (approx 150ms to 200ms prime lengths)
+    loopSizeL = static_cast<int>(sampleRate * 0.142);
+    loopSizeR = static_cast<int>(sampleRate * 0.163);
+
+    loopBufferL.setSize(1, loopSizeL + 10);
+    loopBufferR.setSize(1, loopSizeR + 10);
+    loopBufferL.clear();
+    loopBufferR.clear();
+    loopWriteL = 0;
+    loopWriteR = 0;
+
+    // Prepare nested loop allpasses
+    loopDiffL[0].prepare(static_cast<int>(672 * sampleRate / 44100.0), 0.5f);
+    loopDiffL[1].prepare(static_cast<int>(1800 * sampleRate / 44100.0), 0.5f);
+
+    loopDiffR[0].prepare(static_cast<int>(908 * sampleRate / 44100.0), 0.5f);
+    loopDiffR[1].prepare(static_cast<int>(2656 * sampleRate / 44100.0), 0.5f);
+
+    dampStateL = 0.0f;
+    dampStateR = 0.0f;
 
     shimmerPitchShifter.prepare(sampleRate, samplesPerBlock);
 
@@ -23,7 +51,26 @@ void ReverbEngine::prepare(double sampleRate, int samplesPerBlock)
 
 void ReverbEngine::reset()
 {
-    juceReverbEngine.reset();
+    for (int i = 0; i < 4; ++i)
+    {
+        inDiffL[i].reset();
+        inDiffR[i].reset();
+    }
+
+    loopBufferL.clear();
+    loopBufferR.clear();
+    loopWriteL = 0;
+    loopWriteR = 0;
+
+    for (int i = 0; i < 2; ++i)
+    {
+        loopDiffL[i].reset();
+        loopDiffR[i].reset();
+    }
+
+    dampStateL = 0.0f;
+    dampStateR = 0.0f;
+
     shimmerPitchShifter.reset();
     preDelayBuffer.clear();
     preDelayWritePos = 0;
@@ -44,42 +91,6 @@ void ReverbEngine::setParams(ReverbAlgorithm algo, ReverbEra era, float decaySec
     lfoRate = modRate;
     lfoDepth = modDepth;
     isPreEQ = preEQ;
-
-    // Room size algorithm parameter mapping
-    float roomSizeValue = 0.5f;
-    float dampingValue = juce::jlimit(0.05f, 0.95f, 1.0f - diffHigh);
-
-    switch (currentAlgo)
-    {
-        case ReverbAlgorithm::RoomChamber:
-            roomSizeValue = juce::jlimit(0.2f, 0.55f, 0.2f + sizeParam * 0.35f);
-            break;
-
-        case ReverbAlgorithm::HallPlate:
-            roomSizeValue = juce::jlimit(0.4f, 0.80f, 0.4f + sizeParam * 0.40f);
-            break;
-
-        case ReverbAlgorithm::AmbientShimmer:
-            roomSizeValue = juce::jlimit(0.5f, 0.85f, 0.5f + sizeParam * 0.35f);
-            break;
-
-        case ReverbAlgorithm::NonLinearGated:
-            roomSizeValue = juce::jlimit(0.2f, 0.60f, 0.2f + sizeParam * 0.40f);
-            break;
-
-        case ReverbAlgorithm::BlackoutBlackhole:
-            roomSizeValue = juce::jlimit(0.6f, 0.85f, 0.6f + sizeParam * 0.25f);
-            break;
-    }
-
-    reverbParams.roomSize = roomSizeValue;
-    reverbParams.damping = dampingValue;
-    reverbParams.wetLevel = 0.25f; // Safe wet scaling to prevent comb filter buildup
-    reverbParams.dryLevel = 0.0f;
-    reverbParams.width = juce::jlimit(0.1f, 1.0f, sizeParam);
-    reverbParams.freezeMode = (decaySec >= 59.0f) ? 1.0f : 0.0f;
-
-    juceReverbEngine.setParameters(reverbParams);
 }
 
 void ReverbEngine::applyEraTone(juce::AudioBuffer<float>& buffer)
@@ -90,20 +101,18 @@ void ReverbEngine::applyEraTone(juce::AudioBuffer<float>& buffer)
     switch (currentEra)
     {
         case ReverbEra::Era1970s:
-            // Dark, lo-fi roll-off
             for (int ch = 0; ch < numChannels; ++ch)
             {
                 float* data = buffer.getWritePointer(ch);
                 for (int s = 0; s < numSamples; ++s)
                 {
-                    data[s] *= 0.85f; // Soft attenuation
+                    data[s] *= 0.85f;
                 }
             }
             break;
 
         case ReverbEra::Era1980s:
         {
-            // Sample-accurate smooth bright chorus modulation
             float phaseInc = (juce::MathConstants<float>::twoPi * lfoRate) / static_cast<float>(currentSampleRate);
             for (int s = 0; s < numSamples; ++s)
             {
@@ -120,7 +129,6 @@ void ReverbEngine::applyEraTone(juce::AudioBuffer<float>& buffer)
         }
 
         case ReverbEra::Era2000s:
-            // Pristine, no tone alterations
             break;
     }
 }
@@ -139,14 +147,14 @@ void ReverbEngine::process(juce::AudioBuffer<float>& buffer)
 
     // Pre-delay buffer processing
     int preDelaySamples = static_cast<int>(preDelayTimeMs * 0.001 * currentSampleRate);
-    int bufferSize = preDelayBuffer.getNumSamples();
+    int pBufSize = preDelayBuffer.getNumSamples();
 
-    if (preDelaySamples > 0 && bufferSize > 0)
+    if (preDelaySamples > 0 && pBufSize > 0)
     {
         for (int s = 0; s < numSamples; ++s)
         {
             int readPos = preDelayWritePos - preDelaySamples;
-            while (readPos < 0) readPos += bufferSize;
+            while (readPos < 0) readPos += pBufSize;
 
             for (int ch = 0; ch < numChannels; ++ch)
             {
@@ -154,14 +162,64 @@ void ReverbEngine::process(juce::AudioBuffer<float>& buffer)
                 preDelayBuffer.setSample(ch, preDelayWritePos, inSample);
                 buffer.setSample(ch, s, preDelayBuffer.getSample(ch, readPos));
             }
-            preDelayWritePos = (preDelayWritePos + 1) % bufferSize;
+            preDelayWritePos = (preDelayWritePos + 1) % pBufSize;
         }
     }
 
-    // Core algorithmic reverb process
-    if (numChannels == 2)
+    // Calculate feedback decay gain based on decaySeconds parameter
+    // RT60 = -3 * T_loop / log10(g_fb) => g_fb = 10^(-3 * T_loop / RT60)
+    float tLoop = 0.15f; // Average loop delay
+    float decayFactor = std::pow(10.0f, (-3.0f * tLoop) / std::max(0.1f, decaySeconds));
+    decayFactor = juce::jlimit(0.10f, 0.94f, decayFactor); // Strictly capped < 0.95 to prevent runaway
+
+    float dampCoeff = juce::jlimit(0.1f, 0.8f, diffusionHigh);
+
+    for (int s = 0; s < numSamples; ++s)
     {
-        juceReverbEngine.processStereo(buffer.getWritePointer(0), buffer.getWritePointer(1), numSamples);
+        float inL = buffer.getSample(0, s);
+        float inR = buffer.getSample(1, s);
+
+        // 1. Pass input through cascaded Allpass diffusers (diffuses sharp transients into smooth noise)
+        float diffL = inL;
+        float diffR = inR;
+        for (int i = 0; i < 4; ++i)
+        {
+            diffL = inDiffL[i].process(diffL);
+            diffR = inDiffR[i].process(diffR);
+        }
+
+        // 2. Read from delay loop
+        int readL = (loopWriteL - loopSizeL + loopSizeL + 10) % loopSizeL;
+        int readR = (loopWriteR - loopSizeR + loopSizeR + 10) % loopSizeR;
+
+        float nodeL = loopBufferL.getSample(0, readL);
+        float nodeR = loopBufferR.getSample(0, readR);
+
+        // Cross-feedback tank matrix
+        float nextL = diffL + nodeR * decayFactor;
+        float nextR = diffR + nodeL * decayFactor;
+
+        // Nested Allpass diffusion inside loop
+        nextL = loopDiffL[0].process(nextL);
+        nextL = loopDiffL[1].process(nextL);
+
+        nextR = loopDiffR[0].process(nextR);
+        nextR = loopDiffR[1].process(nextR);
+
+        // Damping lowpass
+        dampStateL = dampStateL * dampCoeff + nextL * (1.0f - dampCoeff);
+        dampStateR = dampStateR * dampCoeff + nextR * (1.0f - dampCoeff);
+
+        // Write back to loop buffer with soft clipping
+        loopBufferL.setSample(0, loopWriteL, std::tanh(dampStateL));
+        loopBufferR.setSample(0, loopWriteR, std::tanh(dampStateR));
+
+        loopWriteL = (loopWriteL + 1) % loopSizeL;
+        loopWriteR = (loopWriteR + 1) % loopSizeR;
+
+        // Output lush diffused reverb tail
+        buffer.setSample(0, s, dampStateL * 0.5f);
+        buffer.setSample(1, s, dampStateR * 0.5f);
     }
 
     // Shimmer Pitch Shifting ONLY for AmbientShimmer algorithm
