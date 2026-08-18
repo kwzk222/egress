@@ -8,38 +8,30 @@ void ReverbEngine::prepare(double sampleRate, int samplesPerBlock)
 {
     currentSampleRate = sampleRate;
 
-    // Scale delay lengths proportional to sample rate
     float srScale = static_cast<float>(sampleRate / 44100.0);
 
-    // 1. Prepare input allpass diffusers
-    int diffDelaysL[4] = { 142, 107, 379, 277 };
-    int diffDelaysR[4] = { 149, 113, 389, 281 };
+    // Dattorro input diffuser delays (142, 107, 379, 277 samples at 44.1k)
+    inAllpass1.prepare(static_cast<int>(142 * srScale), 0.75f, sampleRate);
+    inAllpass2.prepare(static_cast<int>(107 * srScale), 0.75f, sampleRate);
+    inAllpass3.prepare(static_cast<int>(379 * srScale), 0.625f, sampleRate);
+    inAllpass4.prepare(static_cast<int>(277 * srScale), 0.625f, sampleRate);
 
-    for (int i = 0; i < 4; ++i)
-    {
-        inDiffL[i].prepare(static_cast<int>(diffDelaysL[i] * srScale), 0.65f);
-        inDiffR[i].prepare(static_cast<int>(diffDelaysR[i] * srScale), 0.65f);
-    }
+    // Dattorro Left Tank Half delays (allpass 672 & 1800, delays 4453 & 3720)
+    loopAllpassL1.prepare(static_cast<int>(672 * srScale), -0.70f, sampleRate);
+    loopDelayL1.prepare(static_cast<int>(4453 * srScale));
+    loopAllpassL2.prepare(static_cast<int>(1800 * srScale), 0.50f, sampleRate);
+    loopDelayL2.prepare(static_cast<int>(3720 * srScale));
 
-    // 2. Prepare modulated figure-of-8 delay lines
-    loopLenL1 = static_cast<int>(1944 * srScale);
-    loopLenL2 = static_cast<int>(1375 * srScale);
-    loopLenR1 = static_cast<int>(1830 * srScale);
-    loopLenR2 = static_cast<int>(1574 * srScale);
+    // Dattorro Right Tank Half delays (allpass 908 & 2656, delays 4217 & 3163)
+    loopAllpassR1.prepare(static_cast<int>(908 * srScale), -0.70f, sampleRate);
+    loopDelayR1.prepare(static_cast<int>(4217 * srScale));
+    loopAllpassR2.prepare(static_cast<int>(2656 * srScale), 0.50f, sampleRate);
+    loopDelayR2.prepare(static_cast<int>(3163 * srScale));
 
-    loopBufferL1.setSize(1, loopLenL1 + 200);
-    loopBufferL2.setSize(1, loopLenL2 + 200);
-    loopBufferR1.setSize(1, loopLenR1 + 200);
-    loopBufferR2.setSize(1, loopLenR2 + 200);
-
-    loopBufferL1.clear();
-    loopBufferL2.clear();
-    loopBufferR1.clear();
-    loopBufferR2.clear();
-
-    writeL1 = writeL2 = writeR1 = writeR2 = 0;
-    lfoPhase1 = lfoPhase2 = 0.0f;
-    dampStateL = dampStateR = 0.0f;
+    dampStateL = 0.0f;
+    dampStateR = 0.0f;
+    lfoPhase1 = 0.0f;
+    lfoPhase2 = 0.0f;
 
     shimmerPitchShifter.prepare(sampleRate, samplesPerBlock);
 
@@ -53,20 +45,25 @@ void ReverbEngine::prepare(double sampleRate, int samplesPerBlock)
 
 void ReverbEngine::reset()
 {
-    for (int i = 0; i < 4; ++i)
-    {
-        inDiffL[i].reset();
-        inDiffR[i].reset();
-    }
+    inAllpass1.reset();
+    inAllpass2.reset();
+    inAllpass3.reset();
+    inAllpass4.reset();
 
-    loopBufferL1.clear();
-    loopBufferL2.clear();
-    loopBufferR1.clear();
-    loopBufferR2.clear();
+    loopAllpassL1.reset();
+    loopDelayL1.reset();
+    loopAllpassL2.reset();
+    loopDelayL2.reset();
 
-    writeL1 = writeL2 = writeR1 = writeR2 = 0;
-    lfoPhase1 = lfoPhase2 = 0.0f;
-    dampStateL = dampStateR = 0.0f;
+    loopAllpassR1.reset();
+    loopDelayR1.reset();
+    loopAllpassR2.reset();
+    loopDelayR2.reset();
+
+    dampStateL = 0.0f;
+    dampStateR = 0.0f;
+    lfoPhase1 = 0.0f;
+    lfoPhase2 = 0.0f;
 
     shimmerPitchShifter.reset();
     preDelayBuffer.clear();
@@ -88,23 +85,6 @@ void ReverbEngine::setParams(ReverbAlgorithm algo, ReverbEra era, float decaySec
     lfoRate = modRate;
     lfoDepth = modDepth;
     isPreEQ = preEQ;
-}
-
-float ReverbEngine::readInterpolatedModulated(const juce::AudioBuffer<float>& buf, int writePos, int baseLen, float modOffset) const
-{
-    int bSize = buf.getNumSamples();
-    if (bSize <= 0) return 0.0f;
-
-    float readPos = static_cast<float>(writePos) - static_cast<float>(baseLen) + modOffset;
-    while (readPos < 0.0f) readPos += static_cast<float>(bSize);
-
-    int i1 = static_cast<int>(readPos) % bSize;
-    int i2 = (i1 + 1) % bSize;
-    float frac = readPos - std::floor(readPos);
-
-    float s1 = buf.getSample(0, i1);
-    float s2 = buf.getSample(0, i2);
-    return s1 + frac * (s2 - s1);
 }
 
 void ReverbEngine::applyEraTone(juce::AudioBuffer<float>& buffer)
@@ -180,61 +160,77 @@ void ReverbEngine::process(juce::AudioBuffer<float>& buffer)
         }
     }
 
-    // Calculate feedback decay gain based on decaySeconds parameter
-    // RT60 = -3 * T_loop / log10(g_fb) => g_fb = 10^(-3 * T_loop / RT60)
-    float tLoop = 0.12f; // Average loop delay (~120ms)
+    // Decay gain mapping based on decaySeconds (RT60 decay time equation)
+    float tLoop = 0.18f; // ~180ms loop length
     float decayFactor = std::pow(10.0f, (-3.0f * tLoop) / std::max(0.1f, decaySeconds));
-    decayFactor = juce::jlimit(0.10f, 0.90f, decayFactor); // Strictly capped < 0.92 to prevent runaway
+    decayFactor = juce::jlimit(0.10f, 0.88f, decayFactor); // Capped < 0.90 to guarantee stability
 
-    float dampCoeff = juce::jlimit(0.05f, 0.70f, 1.0f - diffusionHigh);
-    float lfoDepthSamples = 8.0f * lfoDepth;
+    float dampCoeff = juce::jlimit(0.05f, 0.60f, 1.0f - diffusionHigh);
+
+    // LFO phase increments (~0.7 Hz and ~1.1 Hz)
+    float lfoInc1 = (0.7f * lfoRate) / static_cast<float>(currentSampleRate);
+    float lfoInc2 = (1.1f * lfoRate) / static_cast<float>(currentSampleRate);
+    float maxModSamples = 8.0f * lfoDepth;
 
     for (int s = 0; s < numSamples; ++s)
     {
         float inL = buffer.getSample(0, s);
         float inR = buffer.getSample(1, s);
+        float inputMono = (inL + inR) * 0.5f;
 
-        // 1. Pass input through 4 cascaded Allpass diffusers (smears sharp transients)
-        float diffL = inL;
-        float diffR = inR;
-        for (int i = 0; i < 4; ++i)
-        {
-            diffL = inDiffL[i].process(diffL);
-            diffR = inDiffR[i].process(diffR);
-        }
+        // 1. Pass input through 4 series Dattorro input diffusers
+        float diff = inAllpass1.process(inputMono);
+        diff = inAllpass2.process(diff);
+        diff = inAllpass3.process(diff);
+        diff = inAllpass4.process(diff);
 
-        // 2. Advance LFOs for delay modulation (~0.7 Hz and ~1.1 Hz)
-        lfoPhase1 += 0.7f / static_cast<float>(currentSampleRate);
+        // 2. Advance LFOs for smooth allpass delay modulation
+        lfoPhase1 += lfoInc1;
         if (lfoPhase1 >= 1.0f) lfoPhase1 -= 1.0f;
-
-        lfoPhase2 += 1.1f / static_cast<float>(currentSampleRate);
+        lfoPhase2 += lfoInc2;
         if (lfoPhase2 >= 1.0f) lfoPhase2 -= 1.0f;
 
-        float mod1 = std::sin(lfoPhase1 * juce::MathConstants<float>::twoPi) * lfoDepthSamples;
-        float mod2 = std::cos(lfoPhase2 * juce::MathConstants<float>::twoPi) * lfoDepthSamples;
+        float mod1 = std::sin(lfoPhase1 * juce::MathConstants<float>::twoPi) * maxModSamples;
+        float mod2 = std::cos(lfoPhase2 * juce::MathConstants<float>::twoPi) * maxModSamples;
 
-        // 3. Read interpolated modulated samples from figure-of-8 delay lines
-        float nodeL1 = readInterpolatedModulated(loopBufferL1, writeL1, loopLenL1, mod1);
-        float nodeR1 = readInterpolatedModulated(loopBufferR1, writeR1, loopLenR1, mod2);
+        // 3. Process Dattorro Left Tank Half
+        // Tank Left Input = diff + (Right Delay 2 output * decayFactor)
+        float nodeR2 = loopDelayR2.readModulated(0.0f);
+        float tankInL = diff + nodeR2 * decayFactor;
 
-        // 4. Cross feedback matrix
-        float nextL = diffL + nodeR1 * decayFactor;
-        float nextR = diffR + nodeL1 * decayFactor;
+        float apL1 = loopAllpassL1.process(tankInL, mod1);
+        loopDelayL1.write(apL1);
 
-        // 5. Damping lowpass filters (smoothes metallic high frequencies)
-        dampStateL = dampStateL * dampCoeff + nextL * (1.0f - dampCoeff);
-        dampStateR = dampStateR * dampCoeff + nextR * (1.0f - dampCoeff);
+        float delL1 = loopDelayL1.readModulated(0.0f);
 
-        // 6. Write back into loop buffers with soft clipping
-        loopBufferL1.setSample(0, writeL1, std::tanh(dampStateL));
-        loopBufferR1.setSample(0, writeR1, std::tanh(dampStateR));
+        // Lowpass damping
+        dampStateL = dampStateL * dampCoeff + delL1 * (1.0f - dampCoeff);
 
-        writeL1 = (writeL1 + 1) % loopBufferL1.getNumSamples();
-        writeR1 = (writeR1 + 1) % loopBufferR1.getNumSamples();
+        float apL2 = loopAllpassL2.process(dampStateL, 0.0f);
+        loopDelayL2.write(apL2);
 
-        // Output lush, smooth, non-metallic reverb tail
-        buffer.setSample(0, s, dampStateL * 0.4f);
-        buffer.setSample(1, s, dampStateR * 0.4f);
+        // 4. Process Dattorro Right Tank Half
+        // Tank Right Input = diff + (Left Delay 2 output * decayFactor)
+        float nodeL2 = loopDelayL2.readModulated(0.0f);
+        float tankInR = diff + nodeL2 * decayFactor;
+
+        float apR1 = loopAllpassR1.process(tankInR, mod2);
+        loopDelayR1.write(apR1);
+
+        float delR1 = loopDelayR1.readModulated(0.0f);
+
+        // Lowpass damping
+        dampStateR = dampStateR * dampCoeff + delR1 * (1.0f - dampCoeff);
+
+        float apR2 = loopAllpassR2.process(dampStateR, 0.0f);
+        loopDelayR2.write(apR2);
+
+        // 5. Output Taps (Multi-tap Dattorro stereo summation for dense, lush, non-pitched reverberation)
+        float outL = loopDelayL1.readTap(266) + loopDelayL1.readTap(2974) - loopAllpassL2.process(0.0f) + loopDelayL2.readTap(1913) - loopDelayR1.readTap(1996) - loopAllpassR1.process(0.0f) - loopDelayR2.readTap(198);
+        float outR = loopDelayR1.readTap(353) + loopDelayR1.readTap(3627) - loopAllpassR2.process(0.0f) + loopDelayR2.readTap(1228) - loopDelayL1.readTap(2673) - loopAllpassL1.process(0.0f) - loopDelayL2.readTap(335);
+
+        buffer.setSample(0, s, std::tanh(outL * 0.35f));
+        buffer.setSample(1, s, std::tanh(outR * 0.35f));
     }
 
     // Shimmer Pitch Shifting ONLY for AmbientShimmer algorithm

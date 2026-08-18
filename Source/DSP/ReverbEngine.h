@@ -23,15 +23,16 @@ enum class ReverbEra
     Era2000s
 };
 
-// High-quality Allpass Filter for diffusion
-class AllpassDiffuser
+// Allpass filter with optional delay modulation
+class DattorroAllpass
 {
 public:
-    void prepare(int delaySamples, float feedbackGain)
+    void prepare(int delaySamples, float feedbackGain, double sampleRate)
     {
-        bufferSize = delaySamples + 2;
-        delayLen = delaySamples;
+        sr = sampleRate;
+        baseDelay = delaySamples;
         g = feedbackGain;
+        bufferSize = delaySamples + 500;
         buffer.setSize(1, bufferSize);
         buffer.clear();
         writePos = 0;
@@ -43,14 +44,18 @@ public:
         writePos = 0;
     }
 
-    float process(float in)
+    float process(float in, float modOffsetSamples = 0.0f)
     {
         if (bufferSize <= 0) return in;
 
-        int readPos = writePos - delayLen;
-        while (readPos < 0) readPos += bufferSize;
+        float readPos = static_cast<float>(writePos) - static_cast<float>(baseDelay) + modOffsetSamples;
+        while (readPos < 0.0f) readPos += static_cast<float>(bufferSize);
 
-        float bufOut = buffer.getSample(0, readPos);
+        int i1 = static_cast<int>(readPos) % bufferSize;
+        int i2 = (i1 + 1) % bufferSize;
+        float frac = readPos - std::floor(readPos);
+
+        float bufOut = buffer.getSample(0, i1) + frac * (buffer.getSample(0, i2) - buffer.getSample(0, i1));
         float out = -g * in + bufOut;
         buffer.setSample(0, writePos, in + g * out);
 
@@ -60,10 +65,69 @@ public:
 
 private:
     juce::AudioBuffer<float> buffer;
-    int bufferSize { 100 };
-    int delayLen { 50 };
+    int bufferSize { 1000 };
+    int baseDelay { 500 };
     int writePos { 0 };
-    float g { 0.6f };
+    float g { 0.5f };
+    double sr { 44100.0 };
+};
+
+// Simple Modulated Delay Line
+class DattorroDelay
+{
+public:
+    void prepare(int delaySamples)
+    {
+        baseDelay = delaySamples;
+        bufferSize = delaySamples + 500;
+        buffer.setSize(1, bufferSize);
+        buffer.clear();
+        writePos = 0;
+    }
+
+    void reset()
+    {
+        buffer.clear();
+        writePos = 0;
+    }
+
+    void write(float sample)
+    {
+        if (bufferSize > 0)
+        {
+            buffer.setSample(0, writePos, sample);
+            writePos = (writePos + 1) % bufferSize;
+        }
+    }
+
+    float readTap(int tapSamples) const
+    {
+        if (bufferSize <= 0) return 0.0f;
+        int readPos = writePos - 1 - tapSamples;
+        while (readPos < 0) readPos += bufferSize;
+        return buffer.getSample(0, readPos % bufferSize);
+    }
+
+    float readModulated(float modOffsetSamples = 0.0f) const
+    {
+        if (bufferSize <= 0) return 0.0f;
+        float readPos = static_cast<float>(writePos - 1) - static_cast<float>(baseDelay) + modOffsetSamples;
+        while (readPos < 0.0f) readPos += static_cast<float>(bufferSize);
+
+        int i1 = static_cast<int>(readPos) % bufferSize;
+        int i2 = (i1 + 1) % bufferSize;
+        float frac = readPos - std::floor(readPos);
+
+        return buffer.getSample(0, i1) + frac * (buffer.getSample(0, i2) - buffer.getSample(0, i1));
+    }
+
+    int getBaseDelay() const { return baseDelay; }
+
+private:
+    juce::AudioBuffer<float> buffer;
+    int bufferSize { 1000 };
+    int baseDelay { 500 };
+    int writePos { 0 };
 };
 
 class ReverbEngine
@@ -96,33 +160,31 @@ private:
     float lfoDepth { 0.3f };
     bool isPreEQ { false };
 
-    // Input Diffuser Network (4 Cascaded Allpass Stages)
-    AllpassDiffuser inDiffL[4];
-    AllpassDiffuser inDiffR[4];
+    // Dattorro Input Allpass Diffusers (4 in series)
+    DattorroAllpass inAllpass1;
+    DattorroAllpass inAllpass2;
+    DattorroAllpass inAllpass3;
+    DattorroAllpass inAllpass4;
 
-    // Modulated Decay Loop Delay Lines
-    juce::AudioBuffer<float> loopBufferL1;
-    juce::AudioBuffer<float> loopBufferL2;
-    juce::AudioBuffer<float> loopBufferR1;
-    juce::AudioBuffer<float> loopBufferR2;
+    // Dattorro Left Tank Half
+    DattorroAllpass loopAllpassL1;
+    DattorroDelay   loopDelayL1;
+    DattorroAllpass loopAllpassL2;
+    DattorroDelay   loopDelayL2;
 
-    int loopLenL1 { 1944 };
-    int loopLenL2 { 1375 };
-    int loopLenR1 { 1830 };
-    int loopLenR2 { 1574 };
+    // Dattorro Right Tank Half
+    DattorroAllpass loopAllpassR1;
+    DattorroDelay   loopDelayR1;
+    DattorroAllpass loopAllpassR2;
+    DattorroDelay   loopDelayR2;
 
-    int writeL1 { 0 };
-    int writeL2 { 0 };
-    int writeR1 { 0 };
-    int writeR2 { 0 };
-
-    // Modulating LFOs for pitch smearing (prevents static comb filter resonance)
-    float lfoPhase1 { 0.0f };
-    float lfoPhase2 { 0.0f };
-
-    // Lowpass Damping Filters
+    // Lowpass Damping States
     float dampStateL { 0.0f };
     float dampStateR { 0.0f };
+
+    // LFO phases for delay modulation
+    float lfoPhase1 { 0.0f };
+    float lfoPhase2 { 0.0f };
 
     // Pitch shifter for Shimmer algorithm
     GranularPitchShifter shimmerPitchShifter;
@@ -134,9 +196,8 @@ private:
     // EQ
     ParametricEQ eq;
 
-    // LFO phase for era modulation
+    // LFO phase for era chorus modulation
     float eraLfoPhase { 0.0f };
 
-    float readInterpolatedModulated(const juce::AudioBuffer<float>& buf, int writePos, int baseLen, float modOffset) const;
     void applyEraTone(juce::AudioBuffer<float>& buffer);
 };
