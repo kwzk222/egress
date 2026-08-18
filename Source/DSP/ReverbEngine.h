@@ -23,7 +23,7 @@ enum class ReverbEra
     Era2000s
 };
 
-// Standard Dattorro Allpass Filter
+// Canonical Dattorro Allpass Filter
 class DattorroAllpass
 {
 public:
@@ -57,11 +57,13 @@ public:
 
         float bufOut = buffer.getSample(0, i1) + frac * (buffer.getSample(0, i2) - buffer.getSample(0, i1));
 
-        // Correct Dattorro Allpass equation:
-        // out = -g * in + bufOut
-        // buffer_write = in + g * bufOut (NOT g * out!)
-        float out = -g * in + bufOut;
-        buffer.setSample(0, writePos, in + g * bufOut);
+        // Canonical Dattorro Allpass Equations:
+        // v[n] = x[n] + g * bufOut
+        // buffer_write = v[n]
+        // y[n] = -g * v[n] + bufOut
+        float v = in + g * bufOut;
+        buffer.setSample(0, writePos, v);
+        float out = -g * v + bufOut;
 
         writePos = (writePos + 1) % bufferSize;
         return out;
