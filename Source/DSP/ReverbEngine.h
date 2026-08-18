@@ -23,7 +23,7 @@ enum class ReverbEra
     Era2000s
 };
 
-// Allpass filter with optional delay modulation
+// Standard Dattorro Allpass Filter
 class DattorroAllpass
 {
 public:
@@ -56,8 +56,12 @@ public:
         float frac = readPos - std::floor(readPos);
 
         float bufOut = buffer.getSample(0, i1) + frac * (buffer.getSample(0, i2) - buffer.getSample(0, i1));
+
+        // Correct Dattorro Allpass equation:
+        // out = -g * in + bufOut
+        // buffer_write = in + g * bufOut (NOT g * out!)
         float out = -g * in + bufOut;
-        buffer.setSample(0, writePos, in + g * out);
+        buffer.setSample(0, writePos, in + g * bufOut);
 
         writePos = (writePos + 1) % bufferSize;
         return out;
