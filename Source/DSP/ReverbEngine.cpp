@@ -225,12 +225,12 @@ void ReverbEngine::process(juce::AudioBuffer<float>& buffer)
         float apR2 = loopAllpassR2.process(dampStateR, 0.0f);
         loopDelayR2.write(apR2);
 
-        // 5. Output Taps (Multi-tap Dattorro stereo summation for dense, lush, non-pitched reverberation)
-        float outL = loopDelayL1.readTap(266) + loopDelayL1.readTap(2974) - loopAllpassL2.process(0.0f) + loopDelayL2.readTap(1913) - loopDelayR1.readTap(1996) - loopAllpassR1.process(0.0f) - loopDelayR2.readTap(198);
-        float outR = loopDelayR1.readTap(353) + loopDelayR1.readTap(3627) - loopAllpassR2.process(0.0f) + loopDelayR2.readTap(1228) - loopDelayL1.readTap(2673) - loopAllpassL1.process(0.0f) - loopDelayL2.readTap(335);
+        // 5. Output Taps (Multi-tap Dattorro stereo summation without loopAllpass process calls in output summation)
+        float outL = loopDelayL1.readTap(266) + loopDelayL1.readTap(2974) + loopDelayL2.readTap(1913) - loopDelayR1.readTap(1996) - loopDelayR2.readTap(198);
+        float outR = loopDelayR1.readTap(353) + loopDelayR1.readTap(3627) + loopDelayR2.readTap(1228) - loopDelayL1.readTap(2673) - loopDelayL2.readTap(335);
 
-        buffer.setSample(0, s, std::tanh(outL * 0.35f));
-        buffer.setSample(1, s, std::tanh(outR * 0.35f));
+        buffer.setSample(0, s, std::tanh(outL * 0.25f));
+        buffer.setSample(1, s, std::tanh(outR * 0.25f));
     }
 
     // Shimmer Pitch Shifting ONLY for AmbientShimmer algorithm
