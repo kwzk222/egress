@@ -137,7 +137,7 @@ void ParametricEQ::process(juce::AudioBuffer<float>& buffer)
             }
             else
             {
-                data[s] = juce::jlimit(-2.0f, 2.0f, data[s]);
+                data[s] = juce::jlimit(-1.0f, 1.0f, data[s]);
             }
         }
     }
