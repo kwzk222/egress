@@ -23,7 +23,7 @@ enum class ReverbEra
     Era2000s
 };
 
-// High-quality Dattorro / Schroeder Allpass Filter for diffusion without metallic comb resonance
+// High-quality Allpass Filter for diffusion
 class AllpassDiffuser
 {
 public:
@@ -100,17 +100,25 @@ private:
     AllpassDiffuser inDiffL[4];
     AllpassDiffuser inDiffR[4];
 
-    // Decay Loop Delay Lines
-    juce::AudioBuffer<float> loopBufferL;
-    juce::AudioBuffer<float> loopBufferR;
-    int loopWriteL { 0 };
-    int loopWriteR { 0 };
-    int loopSizeL { 44100 };
-    int loopSizeR { 44100 };
+    // Modulated Decay Loop Delay Lines
+    juce::AudioBuffer<float> loopBufferL1;
+    juce::AudioBuffer<float> loopBufferL2;
+    juce::AudioBuffer<float> loopBufferR1;
+    juce::AudioBuffer<float> loopBufferR2;
 
-    // Nested Loop Allpass Filters for maximum echo density & smoothness
-    AllpassDiffuser loopDiffL[2];
-    AllpassDiffuser loopDiffR[2];
+    int loopLenL1 { 1944 };
+    int loopLenL2 { 1375 };
+    int loopLenR1 { 1830 };
+    int loopLenR2 { 1574 };
+
+    int writeL1 { 0 };
+    int writeL2 { 0 };
+    int writeR1 { 0 };
+    int writeR2 { 0 };
+
+    // Modulating LFOs for pitch smearing (prevents static comb filter resonance)
+    float lfoPhase1 { 0.0f };
+    float lfoPhase2 { 0.0f };
 
     // Lowpass Damping Filters
     float dampStateL { 0.0f };
@@ -126,8 +134,9 @@ private:
     // EQ
     ParametricEQ eq;
 
-    // LFO phase for modulation
-    float lfoPhase { 0.0f };
+    // LFO phase for era modulation
+    float eraLfoPhase { 0.0f };
 
+    float readInterpolatedModulated(const juce::AudioBuffer<float>& buf, int writePos, int baseLen, float modOffset) const;
     void applyEraTone(juce::AudioBuffer<float>& buffer);
 };
